@@ -46,7 +46,7 @@ function SceneView({
   return (
     <AbsoluteFill
       style={{
-        padding: "190px 80px 200px",
+        padding: scene.image ? "190px 80px 330px" : "190px 80px 200px",
         direction: rtl ? "rtl" : "ltr",
         opacity: fade,
       }}
@@ -55,6 +55,7 @@ function SceneView({
         style={{
           transform: `translateY(${(1 - enter) * 70}px)`,
           opacity: enter,
+          flexShrink: 0,
         }}
       >
         <div
@@ -70,8 +71,11 @@ function SceneView({
         </div>
         <h1
           style={{
-            fontSize:
-              scene.type === "hook"
+            fontSize: scene.image
+              ? scene.title.length > 70
+                ? 54
+                : 64
+              : scene.type === "hook"
                 ? scene.title.length > 65
                   ? 76
                   : 94
@@ -100,7 +104,12 @@ function SceneView({
       {scene.image && (
         <div
           style={{
-            height: 420,
+            // Grow into the space above captions; shrink for longer text.
+            height: 800,
+            flex: "1 1 800px",
+            minHeight: 0,
+            maxHeight: 980,
+            background: "#e9e5da",
             overflow: "hidden",
             borderRadius: 32,
             marginTop: 32,
@@ -112,8 +121,9 @@ function SceneView({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "cover",
-              transform: `scale(${1 + (frame / scene.durationFrames) * 0.08})`,
+              objectFit: "contain",
+              objectPosition: "center",
+              display: "block",
             }}
           />
         </div>
@@ -142,8 +152,9 @@ function SceneView({
         style={{
           display: "flex",
           flexDirection: scene.type === "comparison" ? "row" : "column",
+          flexShrink: 0,
           gap: 18,
-          marginTop: 32,
+          marginTop: scene.points.length ? 32 : 0,
         }}
       >
         {scene.points.map((point, i) => {
@@ -177,7 +188,7 @@ function SceneView({
           );
         })}
       </div>
-      {scene.type === "closing" && (
+      {scene.type === "closing" && !scene.image && (
         <div
           style={{
             marginTop: 85,
