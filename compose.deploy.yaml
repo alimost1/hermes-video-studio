@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes: [redis-data:/data]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  web:
+    build: .
+    image: hermes-video-studio:local
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATA_DIR: /app/data
+    ports: ["127.0.0.1:3100:3000"]
+    volumes: [video-data:/app/data]
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    mem_limit: 2g
+  worker:
+    image: hermes-video-studio:local
+    command: [npm, run, worker]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATA_DIR: /app/data
+      CHROME_PATH: /usr/bin/chromium
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [video-data:/app/data]
+    depends_on:
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    init: true
+    shm_size: 1gb
+    mem_limit: 10g
+    cpus: 3.5
+    stop_grace_period: 10m
+    restart: unless-stopped
+volumes:
+  redis-data:
+  video-data:

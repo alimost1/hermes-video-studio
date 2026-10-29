@@ -2,6 +2,7 @@ import dns from "node:dns/promises";
 import https from "node:https";
 import http from "node:http";
 import ipaddr from "ipaddr.js";
+
 export function publicAddress(address: string): boolean {
   try {
     let ip = ipaddr.parse(address);
@@ -12,6 +13,7 @@ export function publicAddress(address: string): boolean {
     return false;
   }
 }
+
 export function validateUrl(raw: string): URL {
   const u = new URL(raw);
   if (
@@ -32,6 +34,7 @@ export function validateUrl(raw: string): URL {
     throw new Error("Private network URLs are not allowed.");
   return u;
 }
+
 // Pin the validated DNS address for the actual connection to prevent DNS rebinding.
 export async function safeFetch(
   raw: string,
@@ -42,15 +45,30 @@ export async function safeFetch(
   const u = validateUrl(raw),
     host = u.hostname.replace(/^\[|\]$/g, "");
   const addresses = await dns.lookup(host, { all: true });
+  console.log('[safeFetch] DNS addresses:', JSON.stringify(addresses));
   if (!addresses.length || addresses.some((a) => !publicAddress(a.address)))
     throw new Error("URL resolves to a private or reserved network.");
   const pinned = addresses[0];
+  console.log('[safeFetch] Pinned:', pinned);
+  console.log('[safeFetch] Creating HTTP request to:', u.href);
   return new Promise((resolve, reject) => {
+    const lookupFn = (_hostname: string, _options: any, callback: any) => {
+      console.log('[safeFetch] lookup callback invoked, pinned:', JSON.stringify(pinned), 'all:', _options.all);
+      if (!pinned || !pinned.address) {
+        console.error('[safeFetch] ERROR: pinned is invalid:', pinned);
+        return callback(new Error('Pinned address is invalid'));
+      }
+      console.log('[safeFetch] Calling callback with:', pinned.address, pinned.family);
+      if (_options.all) {
+        callback(null, [{ address: pinned.address, family: pinned.family }], pinned.family);
+      } else {
+        callback(null, pinned.address, pinned.family);
+      }
+    };
     const request = (u.protocol === "https:" ? https : http).get(
       u,
       {
-        lookup: (_hostname, _options, callback) =>
-          callback(null, pinned.address, pinned.family),
+        lookup: lookupFn,
         headers: {
           "User-Agent": "HermesVideoStudio/1.0",
           Accept: "text/html,image/*;q=0.9,*/*;q=0.5",
