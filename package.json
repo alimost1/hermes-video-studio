@@ -1,0 +1,45 @@
+{
+  "name": "hermes-video-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build --webpack",
+    "start": "next start --hostname 0.0.0.0",
+    "worker": "node --env-file-if-exists=.env --import tsx src/server/worker.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "render:smoke": "node --env-file-if-exists=.env --import tsx scripts/render-smoke.ts",
+    "submit": "node --env-file-if-exists=.env --import tsx scripts/submit.ts",
+    "watch": "node --env-file-if-exists=.env --import tsx scripts/watch.ts",
+    "cleanup": "node --env-file-if-exists=.env --import tsx scripts/cleanup.ts",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.539",
+    "@remotion/player": "4.0.539",
+    "@remotion/renderer": "4.0.539",
+    "bullmq": "^5.0.0",
+    "cheerio": "^1.1.2",
+    "ioredis": "^5.0.0",
+    "ipaddr.js": "^2.2.0",
+    "lucide-react": "^0.468.0",
+    "next": "16.4.3",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.539",
+    "tsx": "^4.20.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0"
+  },
+  "type": "module",
+  "overrides": {
+    "zod": "$zod"
+  }
+}
