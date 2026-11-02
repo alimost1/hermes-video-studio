@@ -106,7 +106,7 @@ async function processProject(id: string, action: string) {
               ? scene.soundEvents
               : [{
                   id: `sfx-${index + 1}`,
-                  type: scene.type === "closing" ? "chime" : scene.type === "image" || scene.type === "comparison" ? "whoosh" : scene.type === "facts" ? "click" : "pop",
+                  type: (scene.type === "closing" ? "chime" : scene.type === "image" || scene.type === "comparison" ? "whoosh" : scene.type === "facts" ? "click" : "pop") as "pop" | "whoosh" | "click" | "chime",
                   atFrame: 12,
                   volume: 0.42,
                 }],
