@@ -1,5 +1,11 @@
 import { z } from "zod";
 export const languageSchema = z.enum(["darija", "ar", "fr", "en"]);
+export const soundEventSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),
+  type: z.enum(["pop", "whoosh", "click", "chime"]),
+  atFrame: z.number().int().min(0).max(5400),
+  volume: z.number().min(0).max(1).default(0.55),
+});
 export const sceneSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),
   type: z.enum(["hook", "image", "facts", "comparison", "closing"]),
@@ -7,6 +13,11 @@ export const sceneSchema = z.object({
   narration: z.string().trim().min(1).max(900),
   points: z.array(z.string().max(100)).max(3).default([]),
   imageIndex: z.number().int().min(0).max(11).nullable().default(null),
+  durationFrames: z.number().int().min(30).max(5400).optional(),
+  animationStartFrame: z.number().int().min(0).max(300).default(0),
+  animationDurationFrames: z.number().int().min(1).max(180).default(24),
+  animationPreset: z.enum(["spring", "fade", "slide", "zoom"]).default("spring"),
+  soundEvents: z.array(soundEventSchema).max(20).default([]),
 });
 export const storyboardSchema = z
   .object({
@@ -16,20 +27,22 @@ export const storyboardSchema = z
   .superRefine((v, ctx) => {
     if (new Set(v.scenes.map((s) => s.id)).size !== v.scenes.length)
       ctx.addIssue({ code: "custom", message: "Scene IDs must be unique" });
+    v.scenes.forEach((scene, index) => {
+      if (scene.durationFrames && scene.soundEvents.some((event) => event.atFrame >= scene.durationFrames!))
+        ctx.addIssue({ code: "custom", path: ["scenes", index, "soundEvents"], message: "Sound events must start inside their scene." });
+    });
   });
 export const createSchema = z.object({
   url: z.string().url().max(2048),
   language: languageSchema.default("darija"),
   duration: z.union([z.literal(30), z.literal(60), z.literal(90)]).default(60),
   brand: z.string().trim().min(1).max(48).default("My Studio"),
-  accent: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .default("#e6533c"),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#e6533c"),
   autoRender: z.boolean().default(true),
   demo: z.boolean().default(false),
 });
 export type CreateInput = z.infer<typeof createSchema>;
+export type SoundEvent = z.infer<typeof soundEventSchema>;
 export type Storyboard = z.infer<typeof storyboardSchema>;
 export type Scene = z.infer<typeof sceneSchema>;
 export type Word = { text: string; start: number; end: number };
@@ -44,77 +57,23 @@ export type VideoProps = {
   accent: string;
   language: string;
   scenes: VideoScene[];
+  backgroundMusic?: boolean;
+  musicVolume?: number;
 };
-export type Source = {
-  url: string;
-  title: string;
-  description: string;
-  text: string;
-  images: string[];
-};
-export type Status =
-  | "queued"
-  | "extracting"
-  | "writing"
-  | "review"
-  | "voicing"
-  | "rendering"
-  | "completed"
-  | "failed";
+export type Source = { url: string; title: string; description: string; text: string; images: string[] };
+export type Status = "queued" | "extracting" | "writing" | "review" | "voicing" | "rendering" | "completed" | "failed";
 export type Project = {
-  id: string;
-  input: CreateInput;
-  status: Status;
-  progress: number;
-  createdAt: string;
-  updatedAt: string;
-  revision: number;
-  error?: string;
-  warnings: string[];
-  source?: Source;
-  storyboard?: Storyboard;
-  video?: VideoProps;
-  output?: string;
-  thumbnail?: string;
-  subtitles?: string;
+  id: string; input: CreateInput; status: Status; progress: number; createdAt: string; updatedAt: string;
+  revision: number; error?: string; warnings: string[]; source?: Source; storyboard?: Storyboard;
+  video?: VideoProps; output?: string; thumbnail?: string; subtitles?: string;
 };
 export const FPS = 30;
-export const totalFrames = (props: VideoProps) =>
-  props.scenes.reduce((n, s) => n + s.durationFrames, 0);
+export const totalFrames = (props: VideoProps) => props.scenes.reduce((n, s) => n + s.durationFrames, 0);
 export const sampleVideo: VideoProps = {
-  brand: "HERMES STUDIO",
-  accent: "#e6533c",
-  language: "en",
+  brand: "HERMES STUDIO", accent: "#e6533c", language: "en", backgroundMusic: true, musicVolume: 0.16,
   scenes: [
-    {
-      id: "hook",
-      type: "hook",
-      title: "A great story starts with one link.",
-      narration: "Turn a page into a story.",
-      points: ["Your ideas. In motion."],
-      imageIndex: null,
-      durationFrames: 150,
-      words: [],
-    },
-    {
-      id: "facts",
-      type: "facts",
-      title: "Built for your next big idea.",
-      narration: "Research. Write. Animate.",
-      points: ["Read the page", "Find the story", "Make it move"],
-      imageIndex: null,
-      durationFrames: 180,
-      words: [],
-    },
-    {
-      id: "closing",
-      type: "closing",
-      title: "From URL to the spotlight.",
-      narration: "Made with Hermes Video Studio.",
-      points: ["1080 × 1920", "Made to be shared"],
-      imageIndex: null,
-      durationFrames: 150,
-      words: [],
-    },
+    { id: "hook", type: "hook", title: "A great story starts with one link.", narration: "Turn a page into a story.", points: ["Your ideas. In motion."], imageIndex: null, durationFrames: 150, animationStartFrame: 0, animationDurationFrames: 24, animationPreset: "spring", soundEvents: [{ id: "hook-pop", type: "pop", atFrame: 12, volume: 0.45 }], words: [] } as VideoScene,
+    { id: "facts", type: "facts", title: "Built for your next big idea.", narration: "Research. Write. Animate.", points: ["Read the page", "Find the story", "Make it move"], imageIndex: null, durationFrames: 180, animationStartFrame: 0, animationDurationFrames: 24, animationPreset: "slide", soundEvents: [{ id: "facts-whoosh", type: "whoosh", atFrame: 8, volume: 0.4 }], words: [] } as VideoScene,
+    { id: "closing", type: "closing", title: "From URL to the spotlight.", narration: "Made with Hermes Video Studio.", points: ["1080 × 1920", "Made to be shared"], imageIndex: null, durationFrames: 150, animationStartFrame: 0, animationDurationFrames: 24, animationPreset: "zoom", soundEvents: [{ id: "closing-chime", type: "chime", atFrame: 10, volume: 0.5 }], words: [] } as VideoScene,
   ],
 };
