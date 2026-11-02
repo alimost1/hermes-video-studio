@@ -98,6 +98,19 @@ async function processProject(id: string, action: string) {
             p.input,
             `${id}-${p.revision}`,
           );
+          // Seed a subtle, editable sound cue on each scene so the explainer
+          // has synchronized SFX from its first render, not only after editing.
+          p.storyboard.scenes = p.storyboard.scenes.map((scene, index) => ({
+            ...scene,
+            soundEvents: scene.soundEvents?.length
+              ? scene.soundEvents
+              : [{
+                  id: `sfx-${index + 1}`,
+                  type: (scene.type === "closing" ? "chime" : scene.type === "image" || scene.type === "comparison" ? "whoosh" : scene.type === "facts" ? "click" : "pop") as "pop" | "whoosh" | "click" | "chime",
+                  atFrame: 12,
+                  volume: 0.42,
+                }],
+          }));
           await saveProject(p);
         }
       }

@@ -211,6 +211,7 @@ export default function Studio() {
                 : "Connections"}
           </span>
           <div className="top-right">
+            <a className="secondary" href="/timeline">Motion timeline</a>
             <span className="status-pill">
               <span className={config?.worker ? "dot" : "dot offline"} />
               {activeCount

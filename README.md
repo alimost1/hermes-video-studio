@@ -13,6 +13,7 @@ Designed for **8 CPU / 16 GB RAM**: one video job at a time, four concurrent ren
 - Five animated React layouts: hook, photo, facts, comparison, and conclusion.
 - ElevenLabs speech timestamps, word highlighting, and SRT export.
 - Storyboard review, title/narration/point edits, image selection, layout selection, and scene reordering.
+- Visual motion timeline at `/timeline`: per-scene duration, animation preset/start/duration, frame-accurate sound-effect events, event volume, and adjustable background music for the animated explainer template.
 - Live job status, render progress, video library, thumbnail, MP4 download, and manual retry.
 - Redis persistence, input deduplication, cached narration, and cached source images.
 - Clearly marked offline sample rendering, without provider keys.
