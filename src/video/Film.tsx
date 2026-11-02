@@ -2,7 +2,7 @@ import React from "react";
 import {
   AbsoluteFill, Audio, Img, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig,
 } from "remotion";
-import type { SoundEvent, VideoProps, VideoScene } from "../shared/schema";
+import { FPS, type SoundEvent, type VideoProps, type VideoScene } from "../shared/schema";
 const paper = "#f4f0e6", ink = "#20251f";
 const audioCache = new Map<string, string>();
 function wavDataUri(key: string, seconds: number, sample: (t: number) => number) {
