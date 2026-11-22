@@ -80,13 +80,23 @@ export default function Studio() {
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
+    if (!project) {
+      setDraft(null);
+      setMotionDraft(null);
+      setSourceUrl("");
+      setDirty(false);
+      return;
+    }
     setDraft(project?.storyboard ? structuredClone(project.storyboard) : null);
-    setMotionDraft(
-      project?.input.style === "motion"
-        ? project?.brief
+    setSourceUrl(project.input.url);
+    // Only (re)initialize motionDraft when the project changes or draft is null.
+    // Do NOT reset on every refresh poll — that wipes unsaved edits.
+    if (project.input.style === "motion" && motionDraft === null) {
+      setMotionDraft(
+        project.brief
           ? structuredClone(project.brief)
           : {
-              service: project?.input.brand ?? "",
+              service: project.input.brand ?? "",
               hook: "Discover",
               hook2: "",
               query: "",
@@ -110,12 +120,11 @@ export default function Studio() {
               pickLabel: "", pickTitle: "", pickNote: "",
               pick1: "", pick2: "", pick3: "", pickConfirm: "",
               artworkIndex: null,
-            }
-        : null,
-    );
-    setSourceUrl(project?.input.url ?? "");
+            },
+      );
+    }
     setDirty(false);
-  }, [selected, project?.revision, project?.storyboard?.title, project?.brief]);
+  }, [selected, project?.id]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -203,7 +212,7 @@ export default function Studio() {
         items.map((item) => (item.id === p.id ? p : item)),
       );
       setSourceUrl(p.input.url);
-      setMotionDraft(null);
+      setMotionDraft(p.brief ? structuredClone(p.brief) : null);
       setDirty(false);
       setSelected(p.id);
     } catch (e) {
