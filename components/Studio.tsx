@@ -17,6 +17,8 @@ import {
   Sparkles,
   Layers,
 } from "lucide-react";
+import { PropertyEditor } from "./PropertyEditor";
+import { propertySeconds } from "@/src/shared/property";
 import { Film } from "@/src/video/Film";
 import {
   FPS,
@@ -54,7 +56,11 @@ export default function Studio() {
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
     [dirty, setDirty] = useState(false);
+  const [propertyStyle, setPropertyStyle] = useState(false);
   const project = projects.find((p) => p.id === selected);
+  const propertyPreview = project
+    ? Boolean(project.input.style)
+    : propertyStyle;
   const processing =
     project && !["completed", "failed", "review"].includes(project.status);
   const refresh = useCallback(async () => {
@@ -135,9 +141,10 @@ export default function Studio() {
         body: JSON.stringify({
           url: demo ? "https://example.com" : f.get("url"),
           language: demo ? "en" : f.get("language"),
-          duration: Number(f.get("duration")),
-          brand: f.get("brand"),
-          accent: f.get("accent"),
+          style: !demo && propertyStyle ? "property-reel" : undefined,
+          duration: Number(f.get("duration") || 60),
+          brand: f.get("brand") || undefined,
+          accent: f.get("accent") || undefined,
           autoRender: f.get("autoRender") === "on",
           demo,
         }),
@@ -321,13 +328,19 @@ export default function Studio() {
                         <span className="badge">{p.status}</span>
                       </div>
                       <h3>
-                        {p.storyboard?.title ||
+                        {p.property?.title ||
+                          p.storyboard?.title ||
                           p.source?.title ||
                           new URL(p.input.url).hostname}
                       </h3>
                       <p>
-                        {p.input.language.toUpperCase()} · {p.input.duration}s
-                        target · {new Date(p.createdAt).toLocaleDateString()}
+                        {p.input.language.toUpperCase()} ·{" "}
+                        {p.input.style
+                          ? p.property
+                            ? propertySeconds(p.property.chapters.length) + "s"
+                            : "Property Reel"
+                          : p.input.duration + "s target"}{" "}
+                        · {new Date(p.createdAt).toLocaleDateString()}
                       </p>
                     </button>
                   ))}
@@ -385,7 +398,30 @@ export default function Studio() {
                       </p>
                       <div className="form-grid">
                         <div>
-                          <label htmlFor="language">Voice language</label>
+                          <label htmlFor="style">Video style</label>
+                          <select
+                            id="style"
+                            value={
+                              propertyStyle ? "property-reel" : "explainer"
+                            }
+                            onChange={(e) =>
+                              setPropertyStyle(
+                                e.target.value === "property-reel",
+                              )
+                            }
+                          >
+                            <option value="explainer">
+                              Narrated explainer
+                            </option>
+                            <option value="property-reel">Property Reel</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="language">
+                            {propertyStyle
+                              ? "Listing text language"
+                              : "Voice language"}
+                          </label>
                           <select
                             id="language"
                             name="language"
@@ -397,41 +433,51 @@ export default function Studio() {
                             <option value="en">English</option>
                           </select>
                         </div>
-                        <div>
-                          <label htmlFor="duration">Target length</label>
-                          <select
-                            id="duration"
-                            name="duration"
-                            defaultValue="60"
-                          >
-                            <option value="30">30 seconds</option>
-                            <option value="60">60 seconds</option>
-                            <option value="90">90 seconds</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label htmlFor="brand">Brand name</label>
-                          <input
-                            id="brand"
-                            name="brand"
-                            defaultValue="My Studio"
-                            maxLength={48}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="accent">Accent color</label>
-                          <div className="color-input">
-                            <input
-                              id="accent"
-                              name="accent"
-                              type="color"
-                              defaultValue="#e6533c"
-                            />
-                            <span>Your signature color</span>
-                          </div>
-                        </div>
+                        {!propertyStyle && (
+                          <>
+                            <div>
+                              <label htmlFor="duration">Target length</label>
+                              <select
+                                id="duration"
+                                name="duration"
+                                defaultValue="60"
+                              >
+                                <option value="30">30 seconds</option>
+                                <option value="60">60 seconds</option>
+                                <option value="90">90 seconds</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label htmlFor="brand">Brand name</label>
+                              <input
+                                id="brand"
+                                name="brand"
+                                defaultValue="My Studio"
+                                maxLength={48}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="accent">Accent color</label>
+                              <div className="color-input">
+                                <input
+                                  id="accent"
+                                  name="accent"
+                                  type="color"
+                                  defaultValue="#e6533c"
+                                />
+                                <span>Your signature color</span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
+                      {propertyStyle && (
+                        <p className="help">
+                          Paired listing photos, gold room reveals, and an
+                          original instrumental score.
+                        </p>
+                      )}
                       <label className="check-label">
                         <input
                           name="autoRender"
@@ -445,7 +491,7 @@ export default function Studio() {
                         disabled={
                           busy ||
                           !config?.hermes ||
-                          !config?.voice ||
+                          (!propertyStyle && !config?.voice) ||
                           !config?.worker
                         }
                       >
@@ -453,13 +499,15 @@ export default function Studio() {
                         {busy ? "Working…" : "Generate my video"}
                         <ArrowUpRight size={18} />
                       </button>
-                      {(!config?.hermes || !config?.voice) && (
+                      {(!config?.hermes ||
+                        (!propertyStyle && !config?.voice)) && (
                         <p className="help">
-                          Connect Hermes and ElevenLabs in your server
-                          environment to generate from a URL.
+                          {propertyStyle
+                            ? "Connect Hermes to generate a property reel."
+                            : "Connect Hermes and ElevenLabs in your server environment to generate from a URL."}
                         </p>
                       )}
-                      {config?.demo && (
+                      {config?.demo && !propertyStyle && (
                         <button
                           type="button"
                           className="text-button"
@@ -481,7 +529,8 @@ export default function Studio() {
                       <div className="section-title">
                         <span className="step">02</span>
                         <h2>
-                          {project.storyboard?.title ||
+                          {project.property?.title ||
+                            project.storyboard?.title ||
                             "Your video is taking shape"}
                         </h2>
                         <span className="badge">{project.status}</span>
@@ -524,6 +573,32 @@ export default function Studio() {
                           <RefreshCw size={16} />
                           Retry job
                         </button>
+                      )}
+                      {project.property && !processing && (
+                        <PropertyEditor
+                          key={project.id + "-" + project.revision}
+                          project={{ ...project, property: project.property }}
+                          busy={busy || !config?.worker}
+                          save={(property) =>
+                            void action(async () => {
+                              await api("/api/projects/" + project.id, {
+                                method: "PATCH",
+                                body: JSON.stringify({
+                                  revision: project.revision,
+                                  property,
+                                }),
+                              });
+                            })
+                          }
+                          render={() =>
+                            void action(async () => {
+                              await api(
+                                "/api/projects/" + project.id + "/render",
+                                { method: "POST" },
+                              );
+                            })
+                          }
+                        />
                       )}
                       {draft && !processing && (
                         <div className="scene-editor">
@@ -723,6 +798,30 @@ export default function Studio() {
                         controls
                         playsInline
                       />
+                    ) : propertyPreview ? (
+                      project?.thumbnail ? (
+                        <img
+                          src={project.thumbnail}
+                          alt="Property Reel cover"
+                          style={{ width: "100%", display: "block" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            aspectRatio: "9/16",
+                            display: "grid",
+                            placeItems: "center",
+                            background: "#1c201e",
+                            color: "#fbf6ea",
+                            padding: 24,
+                            textAlign: "center",
+                          }}
+                        >
+                          {project
+                            ? "Preparing the property preview…"
+                            : "The listing cover will appear here."}
+                        </div>
+                      )
                     ) : (
                       <Player
                         key={`${selected}-${project?.revision}`}
@@ -743,9 +842,11 @@ export default function Studio() {
                     <span>
                       {project?.output
                         ? "Your rendered video"
-                        : selected
-                          ? "Storyboard preview · timing is illustrative until rendered"
-                          : "Sample animation · your story goes here"}
+                        : propertyPreview
+                          ? "Property Reel · portrait tour"
+                          : selected
+                            ? "Storyboard preview · timing is illustrative until rendered"
+                            : "Sample animation · your story goes here"}
                     </span>
                   </div>
                   {project?.output && (
@@ -757,27 +858,41 @@ export default function Studio() {
                         <Download size={16} />
                         Download MP4
                       </a>
-                      <a
-                        className="secondary"
-                        href={`${project.subtitles}?download=1`}
-                      >
-                        Subtitles
-                      </a>
+                      {project.subtitles && (
+                        <a
+                          className="secondary"
+                          href={`${project.subtitles}?download=1`}
+                        >
+                          Subtitles
+                        </a>
+                      )}
                     </div>
                   )}
                   <div className="style-card">
                     <div className="swatches">
-                      <span style={{ background: "#f4f0e6" }} />
                       <span
                         style={{
-                          background: project?.input.accent || "#e6533c",
+                          background: propertyPreview ? "#fbf6ea" : "#f4f0e6",
+                        }}
+                      />
+                      <span
+                        style={{
+                          background: propertyPreview
+                            ? "#d8b984"
+                            : project?.input.accent || "#e6533c",
                         }}
                       />
                       <span style={{ background: "#20251f" }} />
                     </div>
                     <div>
-                      <b>Editorial motion</b>
-                      <p>Clean type. Bold accents. A story that flows.</p>
+                      <b>
+                        {propertyPreview ? "Property Reel" : "Editorial motion"}
+                      </b>
+                      <p>
+                        {propertyPreview
+                          ? "Charcoal panels and gold room names."
+                          : "Clean type. Bold accents. A story that flows."}
+                      </p>
                     </div>
                   </div>
                 </aside>
@@ -804,7 +919,9 @@ export default function Studio() {
                       </span>
                       <span>
                         <b>
-                          {p.storyboard?.title || new URL(p.input.url).hostname}
+                          {p.property?.title ||
+                            p.storyboard?.title ||
+                            new URL(p.input.url).hostname}
                         </b>
                         <small>
                           {p.input.language.toUpperCase()} ·{" "}

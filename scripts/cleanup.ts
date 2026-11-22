@@ -23,6 +23,7 @@ try {
     for (const url of [
       p.output,
       p.thumbnail,
+      p.propertyProof,
       p.subtitles,
       ...(p.video?.scenes.flatMap((s) => [s.audio, s.image]) || []),
     ])

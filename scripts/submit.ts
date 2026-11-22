@@ -13,6 +13,7 @@ const response = await fetch(
     },
     body: JSON.stringify({
       url,
+      style: process.env.VIDEO_STYLE || undefined,
       brand: process.env.VIDEO_BRAND || "My Studio",
       language: process.env.VIDEO_LANGUAGE || "darija",
       duration: 60,

@@ -1,0 +1,29 @@
+{
+  "status": "FOR SALE",
+  "reference": "",
+  "title": "City or property name",
+  "location": "Neighborhood",
+  "cover": {"file":"photos/exterior.jpg", "x":0.52, "y":0.5},
+  "facts": [["92 m²","INTERIOR"], ["12 m²","TERRACE"]],
+  "chapters": [
+    {
+      "name": "LIVING ROOM",
+      "upper": {"file":"photos/living.jpg","x":0.64},
+      "lower": {"file":"photos/living-wide.jpg"},
+      "upperCaption": "", "lowerCaption": ""
+    },
+    {
+      "name": "TERRACE",
+      "upper": {"file":"photos/terrace.jpg","x":0.45},
+      "lower": {"file":"photos/view.jpg"},
+      "upperCaption": "", "lowerCaption": ""
+    }
+  ],
+  "close": {"file":"photos/exterior.jpg","x":0.6},
+  "agency": "Listing agency",
+  "priceLabel": "ASKING PRICE",
+  "price": "",
+  "invite": "Arrange a viewing",
+  "phone": "",
+  "website": ""
+}
