@@ -193,19 +193,28 @@ async function handler(
       validateUrl(input.url);
       if (input.demo && process.env.DEMO_ENABLED !== "true")
         return json({ error: "Demo generation is disabled." }, 400);
+      // The motion style has no narration, so it needs Hermes only.
+      const needsVoice = input.style !== "motion";
       if (
         !input.demo &&
         !(
           process.env.HERMES_API_KEY &&
           process.env.HERMES_BASE_URL &&
-          process.env.ELEVENLABS_API_KEY &&
-          process.env.ELEVENLABS_VOICE_ID
+          (!needsVoice ||
+            (process.env.ELEVENLABS_API_KEY &&
+              process.env.ELEVENLABS_VOICE_ID))
         )
       )
         return json(
-          { error: "Configure Hermes and ElevenLabs on the server first." },
+          {
+            error: needsVoice
+              ? "Configure Hermes and ElevenLabs on the server first."
+              : "Configure Hermes on the server first.",
+          },
           503,
         );
+      // Motion projects are regenerated rather than edited, so they always render.
+      if (input.style === "motion") input.autoRender = true;
       const hash = createHash("sha256")
         .update(JSON.stringify(input))
         .digest("hex");
@@ -259,6 +268,14 @@ async function handler(
           409,
         );
       if (req.method === "PATCH" && route.length === 2) {
+        if (p.input.style === "motion")
+          return json(
+            {
+              error:
+                "Motion promos are regenerated from the URL, not edited. Create a new project.",
+            },
+            400,
+          );
         const input = await body(req);
         if (input.revision !== p.revision)
           return json({ error: "Project changed. Reload before saving." }, 409);
@@ -284,7 +301,7 @@ async function handler(
         return json(p);
       }
       if (req.method === "POST" && ["render", "retry"].includes(route[2])) {
-        if (route[2] === "render" && !p.storyboard)
+        if (route[2] === "render" && !p.storyboard && !p.brief)
           return json({ error: "No storyboard available." }, 400);
         if (route[2] === "retry" && p.status !== "failed")
           return json({ error: "Only failed projects can be retried." }, 409);
@@ -295,7 +312,7 @@ async function handler(
         try {
           await jobs().add(
             "video",
-            { id, action: p.storyboard ? "render" : "generate" },
+            { id, action: p.storyboard || p.brief ? "render" : "generate" },
             { jobId: `${id}-${p.revision}` },
           );
         } catch {

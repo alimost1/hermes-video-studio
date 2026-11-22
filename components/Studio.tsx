@@ -53,7 +53,8 @@ export default function Studio() {
     [error, setError] = useState(""),
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
-    [dirty, setDirty] = useState(false);
+    [dirty, setDirty] = useState(false),
+    [style, setStyle] = useState<"explainer" | "motion">("explainer");
   const project = projects.find((p) => p.id === selected);
   const processing =
     project && !["completed", "failed", "review"].includes(project.status);
@@ -134,8 +135,10 @@ export default function Studio() {
         method: "POST",
         body: JSON.stringify({
           url: demo ? "https://example.com" : f.get("url"),
+          style,
+          motionSeconds: Number(f.get("motionSeconds")) || 45,
           language: demo ? "en" : f.get("language"),
-          duration: Number(f.get("duration")),
+          duration: Number(f.get("duration")) || 60,
           brand: f.get("brand"),
           accent: f.get("accent"),
           autoRender: f.get("autoRender") === "on",
@@ -322,12 +325,16 @@ export default function Studio() {
                       </div>
                       <h3>
                         {p.storyboard?.title ||
+                          p.brief?.sample ||
                           p.source?.title ||
                           new URL(p.input.url).hostname}
                       </h3>
                       <p>
-                        {p.input.language.toUpperCase()} · {p.input.duration}s
-                        target · {new Date(p.createdAt).toLocaleDateString()}
+                        {p.input.language.toUpperCase()} ·{" "}
+                        {p.input.style === "motion"
+                          ? `Motion promo ${p.input.motionSeconds}s`
+                          : `${p.input.duration}s target`}{" "}
+                        · {new Date(p.createdAt).toLocaleDateString()}
                       </p>
                     </button>
                   ))}
@@ -385,29 +392,67 @@ export default function Studio() {
                       </p>
                       <div className="form-grid">
                         <div>
-                          <label htmlFor="language">Voice language</label>
+                          <label htmlFor="style">Video style</label>
                           <select
+                            id="style"
+                            name="style"
+                            value={style}
+                            onChange={(e) =>
+                              setStyle(e.target.value as "explainer" | "motion")
+                            }
+                          >
+                            <option value="explainer">
+                              Narrated explainer
+                            </option>
+                            <option value="motion">
+                              Motion promo · music only
+                            </option>
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="language">
+                            {style === "motion"
+                              ? "On-screen language"
+                              : "Voice language"}
+                          </label>
+                          <select
+                            key={style}
                             id="language"
                             name="language"
-                            defaultValue="darija"
+                            defaultValue={style === "motion" ? "en" : "darija"}
                           >
-                            <option value="darija">Moroccan Darija</option>
-                            <option value="ar">Arabic</option>
+                            {style === "explainer" && (
+                              <>
+                                <option value="darija">Moroccan Darija</option>
+                                <option value="ar">Arabic</option>
+                              </>
+                            )}
                             <option value="fr">French</option>
                             <option value="en">English</option>
                           </select>
                         </div>
                         <div>
                           <label htmlFor="duration">Target length</label>
-                          <select
-                            id="duration"
-                            name="duration"
-                            defaultValue="60"
-                          >
-                            <option value="30">30 seconds</option>
-                            <option value="60">60 seconds</option>
-                            <option value="90">90 seconds</option>
-                          </select>
+                          {style === "motion" ? (
+                            <select
+                              id="motionSeconds"
+                              name="motionSeconds"
+                              defaultValue="45"
+                            >
+                              <option value="45">45 seconds</option>
+                              <option value="15">15 seconds</option>
+                            </select>
+                          ) : (
+                            <select
+                              id="duration"
+                              name="duration"
+                              defaultValue="60"
+                            >
+                              <option value="30">30 seconds</option>
+                              <option value="60">60 seconds</option>
+                              <option value="90">90 seconds</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label htmlFor="brand">Brand name</label>
@@ -432,20 +477,22 @@ export default function Studio() {
                           </div>
                         </div>
                       </div>
-                      <label className="check-label">
-                        <input
-                          name="autoRender"
-                          type="checkbox"
-                          defaultChecked
-                        />
-                        Render automatically after writing the storyboard
-                      </label>
+                      {style === "explainer" && (
+                        <label className="check-label">
+                          <input
+                            name="autoRender"
+                            type="checkbox"
+                            defaultChecked
+                          />
+                          Render automatically after writing the storyboard
+                        </label>
+                      )}
                       <button
                         className="primary generate"
                         disabled={
                           busy ||
                           !config?.hermes ||
-                          !config?.voice ||
+                          (style === "explainer" && !config?.voice) ||
                           !config?.worker
                         }
                       >
@@ -453,10 +500,12 @@ export default function Studio() {
                         {busy ? "Working…" : "Generate my video"}
                         <ArrowUpRight size={18} />
                       </button>
-                      {(!config?.hermes || !config?.voice) && (
+                      {(!config?.hermes ||
+                        (style === "explainer" && !config?.voice)) && (
                         <p className="help">
-                          Connect Hermes and ElevenLabs in your server
-                          environment to generate from a URL.
+                          {style === "motion"
+                            ? "Connect Hermes in your server environment to generate from a URL."
+                            : "Connect Hermes and ElevenLabs in your server environment to generate from a URL."}
                         </p>
                       )}
                       {config?.demo && (
@@ -482,6 +531,7 @@ export default function Studio() {
                         <span className="step">02</span>
                         <h2>
                           {project.storyboard?.title ||
+                            project.brief?.sample ||
                             "Your video is taking shape"}
                         </h2>
                         <span className="badge">{project.status}</span>
@@ -723,6 +773,23 @@ export default function Studio() {
                         controls
                         playsInline
                       />
+                    ) : project?.input.style === "motion" ? (
+                      <div
+                        style={{
+                          width: "100%",
+                          aspectRatio: "9 / 16",
+                          display: "grid",
+                          placeItems: "center",
+                          textAlign: "center",
+                          padding: 24,
+                        }}
+                      >
+                        <p className="help">
+                          {project.status === "failed"
+                            ? "The motion promo did not finish. Retry the job."
+                            : "Your motion promo appears here when the render finishes."}
+                        </p>
+                      </div>
                     ) : (
                       <Player
                         key={`${selected}-${project?.revision}`}
@@ -757,12 +824,14 @@ export default function Studio() {
                         <Download size={16} />
                         Download MP4
                       </a>
-                      <a
-                        className="secondary"
-                        href={`${project.subtitles}?download=1`}
-                      >
-                        Subtitles
-                      </a>
+                      {project.subtitles && (
+                        <a
+                          className="secondary"
+                          href={`${project.subtitles}?download=1`}
+                        >
+                          Subtitles
+                        </a>
+                      )}
                     </div>
                   )}
                   <div className="style-card">
@@ -804,10 +873,13 @@ export default function Studio() {
                       </span>
                       <span>
                         <b>
-                          {p.storyboard?.title || new URL(p.input.url).hostname}
+                          {p.storyboard?.title ||
+                            p.brief?.sample ||
+                            new URL(p.input.url).hostname}
                         </b>
                         <small>
                           {p.input.language.toUpperCase()} ·{" "}
+                          {p.input.style === "motion" ? "MOTION · " : ""}
                           {new Date(p.createdAt).toLocaleDateString()}
                         </small>
                       </span>

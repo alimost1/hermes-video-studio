@@ -1,0 +1,14 @@
+interface:
+  display_name: Creatin Motion
+  short_description: Make vertical promos in the Creatin SEO Web motion style
+  default_prompt: Use $creatin-motion to turn my product and call to action into a
+    vertical motion promo.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

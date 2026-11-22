@@ -51,9 +51,13 @@ try {
         },
         body: JSON.stringify({
           url: link,
-          language: process.env.VIDEO_LANGUAGE || "darija",
+          language:
+            process.env.VIDEO_LANGUAGE ||
+            (process.env.VIDEO_STYLE === "motion" ? "en" : "darija"),
           brand: process.env.VIDEO_BRAND || "My Studio",
           duration: 60,
+          style: process.env.VIDEO_STYLE || "explainer",
+          accent: process.env.VIDEO_ACCENT || undefined,
           autoRender: true,
         }),
       },
