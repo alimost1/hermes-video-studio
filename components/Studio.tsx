@@ -82,8 +82,35 @@ export default function Studio() {
   useEffect(() => {
     setDraft(project?.storyboard ? structuredClone(project.storyboard) : null);
     setMotionDraft(
-      project?.input.style === "motion" && project?.brief
-        ? structuredClone(project.brief)
+      project?.input.style === "motion"
+        ? project?.brief
+          ? structuredClone(project.brief)
+          : {
+              service: project?.input.brand ?? "",
+              hook: "Discover",
+              hook2: "",
+              query: "",
+              sample: "",
+              result: "",
+              cta: "Learn more",
+              intro1: "",
+              intro2: "",
+              s1a: "", s1b: "", s3a: "", s3b: "", s4a: "", s4b: "",
+              s5a: "", s5b: "", s6a: "", s6b: "", s7a: "", s7b: "",
+              hero1: "", hero2: "",
+              shopCTA: "", shopLink: "",
+              resultBody: "", resultLink: "",
+              chip1: "", chip2: "", chip3: "",
+              openLabel: "", questionLabel: "", searchHint: "",
+              browserLabel: "", category: "",
+              galleryTitle: "", galleryMeta: "", cardLabel: "",
+              detail1: "", detail2: "", detail3: "",
+              detailIcon1: "", detailIcon2: "",
+              route1: "", route2: "", route3: "",
+              pickLabel: "", pickTitle: "", pickNote: "",
+              pick1: "", pick2: "", pick3: "", pickConfirm: "",
+              artworkIndex: null,
+            }
         : null,
     );
     setSourceUrl(project?.input.url ?? "");
