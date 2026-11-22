@@ -71,6 +71,14 @@ For a host-installed gateway, inspect the Docker bridge address with `ip -4 addr
 
 The director prompt is in `src/server/hermes.ts`. It passes extracted facts as data and requests JSON only. **Disable unnecessary tools and secrets in this Hermes profile.** Prompt instructions alone do not isolate a fully privileged agent; this task needs only text generation, not shell/file/browser tools. Do not connect a public-facing workflow to your unrestricted personal agent.
 
+## Property Reel
+
+Choose **Create a video → Video style → Property Reel**, paste a public listing URL, and choose the language for the on-screen text. Clear **Render automatically** to review the photo pairs, captions, price and viewing contact first. **Save and update proof** builds a new contact sheet. **Render property reel** exports the portrait MP4 with its instrumental score.
+
+A four-chapter tour runs 19.1 seconds at 1080 × 1920. Each additional or removed chapter changes the duration by 2.8 seconds. Hermes writes the listing text. The worker uses the bundled renderer and score generator without calling ElevenLabs. If photos have ambiguous labels, check the selected rooms against the proof sheet.
+
+For the API, send `"style": "property-reel"` with the URL to `POST /api/projects`. The submission CLI also accepts `VIDEO_STYLE=property-reel`. Docker includes the fonts, FFmpeg, NumPy and SciPy. For an offline render with your own local photographs, follow the [Property Reel skill](skills/property-reel/SKILL.md).
+
 ## Connect ElevenLabs
 
 Set a valid API key and a voice ID available to that account. The default model is `eleven_multilingual_v2`; change `ELEVENLABS_MODEL_ID` if needed. The worker uses the [speech with timing API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps).
@@ -139,7 +147,7 @@ The sample render writes `out/smoke.mp4` and `out/smoke.png`. The GitHub Actions
 - Progress before rendering indicates pipeline stages; rendering progress comes from Remotion. Connection badges indicate configuration presence, not a successful provider credential test.
 - Original website images may be copyrighted. Use pages and media you are permitted to repurpose.
 - Failed downloads produce a visible warning and a text-only scene. No replacement images or property facts are invented by application code; review AI scripts for factual accuracy.
-- Authentication is for one trusted owner. This release has no teams, public signup, billing, social posting, background music, or asset upload.
+- Authentication is for one trusted owner. The property tour includes an original score. This release has no teams, public signup, billing, social posting, or asset upload.
 - Source JSON, rendered files, and caches remain until you remove them. Monitor disk space. `npm run cleanup` removes unreferenced old media and old voice-cache entries; current project files and active jobs are preserved. It defaults to 30 days (`RETENTION_DAYS`). Back up first.
 - An interrupted worker can recover through BullMQ's stalled-job handling. If retries are exhausted, the project is marked failed for manual retry.
 - Retained output is not automatically published to any social platform.

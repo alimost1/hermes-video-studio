@@ -1,3 +1,4 @@
+import type { PropertyBoard } from "./property";
 import { z } from "zod";
 export const languageSchema = z.enum(["darija", "ar", "fr", "en"]);
 export const sceneSchema = z.object({
@@ -18,6 +19,7 @@ export const storyboardSchema = z
       ctx.addIssue({ code: "custom", message: "Scene IDs must be unique" });
   });
 export const createSchema = z.object({
+  style: z.literal("property-reel").optional(),
   url: z.string().url().max(2048),
   language: languageSchema.default("darija"),
   duration: z.union([z.literal(30), z.literal(60), z.literal(90)]).default(60),
@@ -51,6 +53,7 @@ export type Source = {
   description: string;
   text: string;
   images: string[];
+  imageLabels?: string[];
 };
 export type Status =
   | "queued"
@@ -73,6 +76,9 @@ export type Project = {
   warnings: string[];
   source?: Source;
   storyboard?: Storyboard;
+  property?: PropertyBoard;
+  propertyProof?: string;
+  propertyIntent?: "review" | "render";
   video?: VideoProps;
   output?: string;
   thumbnail?: string;

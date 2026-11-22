@@ -6,7 +6,8 @@ import { randomBytes } from "node:crypto";
 import { dataDir, redisUrl } from "./config";
 import { getProject, saveProject, redis } from "./store";
 import { extract } from "./extract";
-import { writeStoryboard } from "./hermes";
+import { renderProperty } from "./property";
+import { writePropertyBoard, writeStoryboard } from "./hermes";
 import { voice, srtFromScenes } from "./voice";
 import { safeFetch } from "./safe-fetch";
 import { renderVideo } from "./render";
@@ -67,6 +68,39 @@ async function processProject(id: string, action: string) {
   await mkdir(folder, { recursive: true });
   try {
     p.error = undefined;
+    if (p.input.style === "property-reel") {
+      if (!p.source) {
+        await status(p, "extracting", 8);
+        p.source = await extract(p.input.url, p.input.style);
+        await saveProject(p);
+      }
+      if (!p.property) {
+        await status(p, "writing", 20);
+        p.property = await writePropertyBoard(
+          p.source,
+          p.input,
+          id + "-" + p.revision,
+        );
+        await saveProject(p);
+      }
+      const movie =
+        (p.propertyIntent ?? (p.input.autoRender ? "render" : "review")) ===
+        "render";
+      await status(p, "rendering", 55);
+      const files = await renderProperty(
+        p.property,
+        p.source,
+        folder,
+        p.revision,
+        movie,
+      );
+      const asset = (name: string) => "/api/assets/" + id + "/" + name;
+      p.thumbnail = asset(files.poster);
+      p.propertyProof = asset(files.proof);
+      p.output = files.video ? asset(files.video) : undefined;
+      await status(p, movie ? "completed" : "review", movie ? 100 : 30);
+      return;
+    }
     if (action === "generate") {
       if (p.input.demo) {
         p.source = {

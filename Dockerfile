@@ -1,5 +1,5 @@
 FROM node:22-bookworm-slim AS base
-RUN apt-get update && apt-get install -y --no-install-recommends chromium ffmpeg fonts-noto-core ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends chromium ffmpeg fonts-noto-core fonts-urw-base35 fonts-open-sans python3-numpy python3-scipy ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

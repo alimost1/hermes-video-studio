@@ -19,6 +19,7 @@ import {
   storyboardSchema,
   type Project,
 } from "@/src/shared/schema";
+import { parsePropertyBoard } from "@/src/shared/property";
 import { validateUrl } from "@/src/server/safe-fetch";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,6 +192,11 @@ async function handler(
     if (route.length === 1 && req.method === "POST") {
       const input = createSchema.parse(await body(req));
       validateUrl(input.url);
+      if (input.style && input.demo)
+        return json(
+          { error: "The offline demo uses the explainer style." },
+          400,
+        );
       if (input.demo && process.env.DEMO_ENABLED !== "true")
         return json({ error: "Demo generation is disabled." }, 400);
       if (
@@ -198,12 +204,16 @@ async function handler(
         !(
           process.env.HERMES_API_KEY &&
           process.env.HERMES_BASE_URL &&
-          process.env.ELEVENLABS_API_KEY &&
-          process.env.ELEVENLABS_VOICE_ID
+          (input.style === "property-reel" ||
+            (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID))
         )
       )
         return json(
-          { error: "Configure Hermes and ElevenLabs on the server first." },
+          {
+            error: input.style
+              ? "Configure Hermes on the server first."
+              : "Configure Hermes and ElevenLabs on the server first.",
+          },
           503,
         );
       const hash = createHash("sha256")
@@ -262,6 +272,34 @@ async function handler(
         const input = await body(req);
         if (input.revision !== p.revision)
           return json({ error: "Project changed. Reload before saving." }, 409);
+        if (p.input.style === "property-reel") {
+          p.property = parsePropertyBoard(
+            input.property,
+            p.source?.images.length ?? 0,
+          );
+          p.revision++;
+          p.output = undefined;
+          p.thumbnail = undefined;
+          p.propertyProof = undefined;
+          p.propertyIntent = "review";
+          p.status = "queued";
+          p.progress = 30;
+          p.error = undefined;
+          await saveProject(p);
+          try {
+            await jobs().add(
+              "video",
+              { id, action: "proof" },
+              { jobId: id + "-" + p.revision },
+            );
+          } catch {
+            p.status = "failed";
+            p.error = "Could not enqueue the property preview. Retry it.";
+            await saveProject(p);
+            return json({ error: p.error }, 503);
+          }
+          return json(p);
+        }
         p.storyboard = storyboardSchema.parse(input.storyboard);
         for (const scene of p.storyboard.scenes)
           if (
@@ -284,10 +322,11 @@ async function handler(
         return json(p);
       }
       if (req.method === "POST" && ["render", "retry"].includes(route[2])) {
-        if (route[2] === "render" && !p.storyboard)
+        if (route[2] === "render" && !p.storyboard && !p.property)
           return json({ error: "No storyboard available." }, 400);
         if (route[2] === "retry" && p.status !== "failed")
           return json({ error: "Only failed projects can be retried." }, 409);
+        if (p.input.style && route[2] === "render") p.propertyIntent = "render";
         p.revision++;
         p.status = "queued";
         p.error = undefined;
