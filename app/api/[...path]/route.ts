@@ -16,6 +16,7 @@ import {
 } from "@/src/server/store";
 import {
   createSchema,
+  motionBriefSchema,
   storyboardSchema,
   type Project,
 } from "@/src/shared/schema";
@@ -268,14 +269,22 @@ async function handler(
           409,
         );
       if (req.method === "PATCH" && route.length === 2) {
-        if (p.input.style === "motion")
-          return json(
-            {
-              error:
-                "Motion promos are regenerated from the URL, not edited. Create a new project.",
-            },
-            400,
-          );
+        if (p.input.style === "motion") {
+          const input = await body(req);
+          if (input.revision !== p.revision)
+            return json({ error: "Project changed. Reload before saving." }, 409);
+          p.brief = motionBriefSchema.parse(input.brief);
+          p.revision++;
+          p.status = "review";
+          p.progress = 30;
+          p.output = undefined;
+          p.thumbnail = undefined;
+          p.video = undefined;
+          p.subtitles = undefined;
+          p.error = undefined;
+          await saveProject(p);
+          return json(p);
+        }
         const input = await body(req);
         if (input.revision !== p.revision)
           return json({ error: "Project changed. Reload before saving." }, 409);

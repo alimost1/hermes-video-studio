@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { MotionBrief } from "./motion";
+export type { MotionBrief };
+export { motionBriefSchema } from "./motion";
 export const languageSchema = z.enum(["darija", "ar", "fr", "en"]);
 export const sceneSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),

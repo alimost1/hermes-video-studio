@@ -20,8 +20,10 @@ import {
 import { Film } from "@/src/video/Film";
 import {
   FPS,
+  motionBriefSchema,
   sampleVideo,
   totalFrames,
+  type MotionBrief,
   type Project,
   type Storyboard,
   type VideoProps,
@@ -53,6 +55,7 @@ export default function Studio() {
     [error, setError] = useState(""),
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
+  [motionDraft, setMotionDraft] = useState<MotionBrief | null>(null),
     [dirty, setDirty] = useState(false),
     [style, setStyle] = useState<"explainer" | "motion">("explainer");
   const project = projects.find((p) => p.id === selected);
@@ -77,8 +80,13 @@ export default function Studio() {
   }, [refresh]);
   useEffect(() => {
     setDraft(project?.storyboard ? structuredClone(project.storyboard) : null);
+    setMotionDraft(
+      project?.input.style === "motion" && project?.brief
+        ? structuredClone(project.brief)
+        : null,
+    );
     setDirty(false);
-  }, [selected, project?.revision, project?.storyboard?.title]);
+  }, [selected, project?.revision, project?.storyboard?.title, project?.brief]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -127,6 +135,29 @@ export default function Studio() {
     [scenes[i], scenes[i + delta]] = [scenes[i + delta], scenes[i]];
     setDraft({ ...draft, scenes });
     setDirty(true);
+  }
+  function updateMotionField(key: keyof MotionBrief, value: unknown) {
+    setMotionDraft((d) => (d ? { ...d, [key]: value } : null));
+    setDirty(true);
+  }
+  async function saveMotionBrief() {
+    if (!motionDraft || !project) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          brief: motionDraft,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
   const create = async (form: HTMLFormElement, demo = false) => {
     const f = new FormData(form);
@@ -737,8 +768,631 @@ export default function Studio() {
                           </div>
                         </div>
                       )}
+                    {motionDraft && !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Edit motion brief fields, then save before rendering.
+                        </p>
+                        <div className="motion-fields">
+                          <div className="motion-field-group">
+                            <label>
+                              Brand name
+                              <input
+                                value={motionDraft.service || ""}
+                                maxLength={48}
+                                onChange={(e) =>
+                                  updateMotionField("service", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hook (line 1)
+                              <input
+                                value={motionDraft.hook || ""}
+                                maxLength={20}
+                                onChange={(e) =>
+                                  updateMotionField("hook", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hook (line 2 / highlight)
+                              <input
+                                value={motionDraft.hook2 || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("hook2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Intro line 1
+                              <input
+                                value={motionDraft.intro1 || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("intro1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Intro line 2
+                              <input
+                                value={motionDraft.intro2 || ""}
+                                maxLength={20}
+                                onChange={(e) =>
+                                  updateMotionField("intro2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Search query
+                              <input
+                                value={motionDraft.query || ""}
+                                maxLength={40}
+                                onChange={(e) =>
+                                  updateMotionField("query", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Sample name
+                              <input
+                                value={motionDraft.sample || ""}
+                                maxLength={28}
+                                onChange={(e) =>
+                                  updateMotionField("sample", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result headline
+                              <input
+                                value={motionDraft.result || ""}
+                                maxLength={40}
+                                onChange={(e) =>
+                                  updateMotionField("result", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Call to action
+                              <input
+                                value={motionDraft.cta || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("cta", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Hero line 1
+                              <input
+                                value={motionDraft.hero1 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("hero1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hero line 2
+                              <input
+                                value={motionDraft.hero2 || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("hero2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Shop CTA button
+                              <input
+                                value={motionDraft.shopCTA || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("shopCTA", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Shop link text
+                              <input
+                                value={motionDraft.shopLink || ""}
+                                maxLength={32}
+                                onChange={(e) =>
+                                  updateMotionField("shopLink", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result body text
+                              <textarea
+                                value={motionDraft.resultBody || ""}
+                                maxLength={70}
+                                onChange={(e) =>
+                                  updateMotionField("resultBody", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result link text
+                              <input
+                                value={motionDraft.resultLink || ""}
+                                maxLength={34}
+                                onChange={(e) =>
+                                  updateMotionField("resultLink", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              S1a
+                              <input
+                                value={motionDraft.s1a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s1a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S1b
+                              <input
+                                value={motionDraft.s1b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s1b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S3a
+                              <input
+                                value={motionDraft.s3a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s3a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S3b
+                              <input
+                                value={motionDraft.s3b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s3b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S4a
+                              <input
+                                value={motionDraft.s4a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s4a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S4b
+                              <input
+                                value={motionDraft.s4b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s4b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S5a
+                              <input
+                                value={motionDraft.s5a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s5a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S5b
+                              <input
+                                value={motionDraft.s5b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s5b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S6a
+                              <input
+                                value={motionDraft.s6a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s6a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S6b
+                              <input
+                                value={motionDraft.s6b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s6b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S7a
+                              <input
+                                value={motionDraft.s7a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s7a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S7b
+                              <input
+                                value={motionDraft.s7b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s7b", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Chip 1
+                              <input
+                                value={motionDraft.chip1 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Chip 2
+                              <input
+                                value={motionDraft.chip2 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Chip 3
+                              <input
+                                value={motionDraft.chip3 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Open label
+                              <input
+                                value={motionDraft.openLabel || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("openLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Question label
+                              <input
+                                value={motionDraft.questionLabel || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("questionLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Search hint
+                              <input
+                                value={motionDraft.searchHint || ""}
+                                maxLength={34}
+                                onChange={(e) =>
+                                  updateMotionField("searchHint", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Browser label
+                              <input
+                                value={motionDraft.browserLabel || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "browserLabel",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Category
+                              <input
+                                value={motionDraft.category || ""}
+                                maxLength={22}
+                                onChange={(e) =>
+                                  updateMotionField("category", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Gallery title
+                              <input
+                                value={motionDraft.galleryTitle || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "galleryTitle",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Gallery meta
+                              <input
+                                value={motionDraft.galleryMeta || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "galleryMeta",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Card label
+                              <input
+                                value={motionDraft.cardLabel || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("cardLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Detail 1
+                              <input
+                                value={motionDraft.detail1 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail 2
+                              <input
+                                value={motionDraft.detail2 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail 3
+                              <input
+                                value={motionDraft.detail3 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail icon 1
+                              <input
+                                value={motionDraft.detailIcon1 || ""}
+                                maxLength={3}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "detailIcon1",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail icon 2
+                              <input
+                                value={motionDraft.detailIcon2 || ""}
+                                maxLength={3}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "detailIcon2",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Route 1
+                              <input
+                                value={motionDraft.route1 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("route1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Route 2
+                              <input
+                                value={motionDraft.route2 || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("route2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Route 3
+                              <input
+                                value={motionDraft.route3 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("route3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick label
+                              <input
+                                value={motionDraft.pickLabel || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField("pickLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick title
+                              <input
+                                value={motionDraft.pickTitle || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("pickTitle", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick note
+                              <input
+                                value={motionDraft.pickNote || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("pickNote", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 1 (small|big)
+                              <input
+                                value={motionDraft.pick1 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 2 (small|big)
+                              <input
+                                value={motionDraft.pick2 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 3 (small|big)
+                              <input
+                                value={motionDraft.pick3 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick confirm
+                              <input
+                                value={motionDraft.pickConfirm || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("pickConfirm", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Artwork index
+                              <select
+                                value={
+                                  motionDraft.artworkIndex != null
+                                    ? motionDraft.artworkIndex
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "artworkIndex",
+                                    e.target.value === ""
+                                      ? null
+                                      : Number(e.target.value),
+                                  )
+                                }
+                              >
+                                <option value="">None</option>
+                                {(project?.source?.images || []).map(
+                                  (_, index) => (
+                                    <option key={index} value={index}>
+                                      Image {index + 1}
+                                    </option>
+                                  )
+                                )}
+                              </select>
+                            </label>
+                          </div>
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={busy || !dirty}
+                            onClick={saveMotionBrief}
+                          >
+                            <Check size={16} />
+                            Save motion brief
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={busy || dirty || !config?.worker}
+                            onClick={() =>
+                              void action(async () => {
+                                await api(
+                                  `/api/projects/${project.id}/render`,
+                                  { method: "POST" },
+                                );
+                              })
+                            }
+                          >
+                            <Play size={16} />
+                            Render video
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     </section>
                   )}
+
                   {!project && (
                     <div className="workflow-strip">
                       <div>
