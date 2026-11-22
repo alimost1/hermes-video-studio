@@ -196,8 +196,9 @@ async function handler(
       validateUrl(input.url);
       if (input.demo && process.env.DEMO_ENABLED !== "true")
         return json({ error: "Demo generation is disabled." }, 400);
-      // The motion style has no narration, so it needs Hermes only.
-      const needsVoice = input.style !== "motion";
+      // The motion and property-reel styles have no narration, so they need Hermes only.
+      const needsVoice =
+        input.style !== "motion" && input.style !== "property-reel";
       if (
         !input.demo &&
         !(
@@ -374,13 +375,14 @@ async function handler(
         return json(p);
       }
       if (req.method === "POST" && ["render", "retry"].includes(route[2])) {
-        if (route[2] === "render" && !p.storyboard && !p.brief)
+        if (route[2] === "render" && !p.storyboard && !p.brief && !p.property)
           return json({ error: "No storyboard available." }, 400);
         if (route[2] === "retry" && p.status !== "failed")
           return json({ error: "Only failed projects can be retried." }, 409);
         p.revision++;
         p.status = "queued";
         p.error = undefined;
+        if (p.input.style === "property-reel") p.propertyIntent = "render";
         await saveProject(p);
         try {
           await jobs().add(

@@ -183,10 +183,11 @@ async function processProject(id: string, action: string) {
       const movie =
         (p.propertyIntent ?? (p.input.autoRender ? "render" : "review")) ===
         "render";
+      const board = p.property!;
       await status(p, "rendering", 55);
       const files = await renderProperty(
-        p.property,
-        p.source,
+        board,
+        p.source!,
         folder,
         p.revision,
         movie,

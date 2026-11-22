@@ -3,6 +3,7 @@ import {
   type CreateInput,
   type Source,
 } from "../shared/schema";
+import type { PropertyBoard } from "../shared/property";
 import { parsePropertyBoard } from "../shared/property";
 import { propertyPrompt } from "./property";
 import { required } from "./config";
@@ -151,14 +152,46 @@ export async function writePropertyBoard(
   input: CreateInput,
   jobId: string,
 ) {
-  if (!source.images.length)
-    throw Error("The listing has no usable property photos.");
-  return parsePropertyBoard(
-    await askHermes(
-      propertyPrompt,
-      { language: input.language, source },
-      `property-board-${jobId}`,
-    ),
-    source.images.length,
-  );
+  try {
+    if (!source.images.length)
+      throw Error("The listing has no usable property photos.");
+    return parsePropertyBoard(
+      await askHermes(
+        propertyPrompt,
+        { language: input.language, source },
+        `property-board-${jobId}`,
+      ),
+      source.images.length,
+    );
+  } catch {
+    // Hermes unavailable — fall back to a simple board from source data
+    return fallbackPropertyBoard(source);
+  }
+}
+
+function fallbackPropertyBoard(source: Source): PropertyBoard {
+  const title = source.title || "Untitled";
+  const host = new URL(source.url).hostname;
+  return {
+    status: "FOR SALE",
+    reference: "",
+    title: title.slice(0, 80),
+    location: host,
+    cover: { imageIndex: 0 },
+    close: { imageIndex: 0 },
+    facts: [],
+    chapters: source.images.slice(1, 5).map((_, i) => ({
+      name: i === 0 ? "INTERIOR" : "ROOM",
+      upper: { imageIndex: i + 1 },
+      lower: { imageIndex: i + 1 },
+      upperCaption: "",
+      lowerCaption: "",
+    })),
+    agency: "",
+    priceLabel: "",
+    price: "",
+    invite: "Arrange a viewing",
+    phone: "",
+    website: host,
+  };
 }
