@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { MotionBrief } from "./motion";
+import type { PropertyBoard } from "./property";
 export type { MotionBrief };
+export type { PropertyBoard };
 export { motionBriefSchema } from "./motion";
 export const languageSchema = z.enum(["darija", "ar", "fr", "en"]);
 export const sceneSchema = z.object({
@@ -20,7 +22,7 @@ export const storyboardSchema = z
     if (new Set(v.scenes.map((s) => s.id)).size !== v.scenes.length)
       ctx.addIssue({ code: "custom", message: "Scene IDs must be unique" });
   });
-export const styleSchema = z.enum(["explainer", "motion"]);
+export const styleSchema = z.enum(["explainer", "motion", "property-reel"]);
 export const changeSourceSchema = z.object({
   revision: z.number().int().positive(),
   url: z.string().url().max(2048),
@@ -73,6 +75,7 @@ export type Source = {
   description: string;
   text: string;
   images: string[];
+  imageLabels?: string[];
 };
 export type Style = z.infer<typeof styleSchema>;
 export type Status =
@@ -97,6 +100,9 @@ export type Project = {
   source?: Source;
   storyboard?: Storyboard;
   brief?: MotionBrief;
+  property?: PropertyBoard;
+  propertyProof?: string;
+  propertyIntent?: "review" | "render";
   video?: VideoProps;
   output?: string;
   thumbnail?: string;

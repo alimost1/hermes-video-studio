@@ -3,6 +3,8 @@ import {
   type CreateInput,
   type Source,
 } from "../shared/schema";
+import { parsePropertyBoard } from "../shared/property";
+import { propertyPrompt } from "./property";
 import { required } from "./config";
 export const directorPrompt = `You are the storyboard director for an animated educational video. Return ONLY valid JSON matching this shape:
 {"title":"short project title","scenes":[{"id":"scene-1","type":"hook|image|facts|comparison|closing","title":"short on-screen title","narration":"spoken sentence(s)","points":["up to 3 short facts"],"imageIndex":0}]}
@@ -142,4 +144,21 @@ export async function writeStoryboard(
     const parsed = storyboardSchema.parse(fallback);
     return parsed;
   }
+}
+
+export async function writePropertyBoard(
+  source: Source,
+  input: CreateInput,
+  jobId: string,
+) {
+  if (!source.images.length)
+    throw Error("The listing has no usable property photos.");
+  return parsePropertyBoard(
+    await askHermes(
+      propertyPrompt,
+      { language: input.language, source },
+      `property-board-${jobId}`,
+    ),
+    source.images.length,
+  );
 }

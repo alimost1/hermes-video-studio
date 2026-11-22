@@ -21,6 +21,7 @@ import {
   storyboardSchema,
   type Project,
 } from "@/src/shared/schema";
+import { parsePropertyBoard } from "@/src/shared/property";
 import { validateUrl } from "@/src/server/safe-fetch";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -315,6 +316,37 @@ async function handler(
           p.subtitles = undefined;
           p.error = undefined;
           await saveProject(p);
+          return json(p);
+        }
+        if (p.input.style === "property-reel") {
+          const input = await body(req);
+          if (input.revision !== p.revision)
+            return json({ error: "Project changed. Reload before saving." }, 409);
+          p.property = parsePropertyBoard(
+            input.property,
+            p.source?.images.length ?? 0,
+          );
+          p.revision++;
+          p.output = undefined;
+          p.thumbnail = undefined;
+          p.propertyProof = undefined;
+          p.propertyIntent = "review";
+          p.status = "queued";
+          p.progress = 30;
+          p.error = undefined;
+          await saveProject(p);
+          try {
+            await jobs().add(
+              "video",
+              { id, action: "proof" },
+              { jobId: id + "-" + p.revision },
+            );
+          } catch {
+            p.status = "failed";
+            p.error = "Could not enqueue the property preview. Retry it.";
+            await saveProject(p);
+            return json({ error: p.error }, 503);
+          }
           return json(p);
         }
         const input = await body(req);

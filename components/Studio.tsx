@@ -28,6 +28,7 @@ import {
   type Storyboard,
   type VideoProps,
 } from "@/src/shared/schema";
+import type { PropertyBoard } from "@/src/shared/property";
 type Config = {
   hermes: boolean;
   voice: boolean;
@@ -56,9 +57,10 @@ export default function Studio() {
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
     [motionDraft, setMotionDraft] = useState<MotionBrief | null>(null),
+    [propertyDraft, setPropertyDraft] = useState<PropertyBoard | null>(null),
     [sourceUrl, setSourceUrl] = useState(""),
     [dirty, setDirty] = useState(false),
-    [style, setStyle] = useState<"explainer" | "motion">("explainer");
+    [style, setStyle] = useState<"explainer" | "motion" | "property-reel">("explainer");
   const project = projects.find((p) => p.id === selected);
   const processing =
     project && !["completed", "failed", "review"].includes(project.status);
@@ -120,6 +122,37 @@ export default function Studio() {
               pickLabel: "", pickTitle: "", pickNote: "",
               pick1: "", pick2: "", pick3: "", pickConfirm: "",
               artworkIndex: null,
+            },
+        );
+    }
+    // Only (re)initialize propertyDraft when the project changes or draft is null.
+    if (project.input.style === "property-reel" && propertyDraft === null) {
+      setPropertyDraft(
+        project.property
+          ? structuredClone(project.property)
+          : {
+              status: "FOR SALE",
+              reference: "",
+              title: project.input.brand ?? "",
+              location: "",
+              cover: { imageIndex: 0 },
+              facts: [],
+              chapters: [
+                {
+                  name: "INTERIOR",
+                  upper: { imageIndex: 1 },
+                  lower: { imageIndex: 2 },
+                  upperCaption: "",
+                  lowerCaption: "",
+                },
+              ],
+              close: { imageIndex: 0 },
+              agency: "",
+              priceLabel: "",
+              price: "",
+              invite: "Arrange a viewing",
+              phone: "",
+              website: "",
             },
       );
     }
@@ -197,6 +230,29 @@ export default function Studio() {
       setError((e as Error).message);
     }
   }
+  function updatePropertyField(key: keyof PropertyBoard, value: unknown) {
+    setPropertyDraft((d) => (d ? { ...d, [key]: value } : null));
+    setDirty(true);
+  }
+  async function savePropertyBoard() {
+    if (!propertyDraft || !project) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          property: propertyDraft,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   async function changeSource() {
     if (!project) return;
     if (!sourceUrl || sourceUrl === project.input.url) return;
@@ -213,6 +269,7 @@ export default function Studio() {
       );
       setSourceUrl(p.input.url);
       setMotionDraft(p.brief ? structuredClone(p.brief) : null);
+      setPropertyDraft(p.property ? structuredClone(p.property) : null);
       setDirty(false);
       setSelected(p.id);
     } catch (e) {
@@ -424,7 +481,9 @@ export default function Studio() {
                         {p.input.language.toUpperCase()} ·{" "}
                         {p.input.style === "motion"
                           ? `Motion promo ${p.input.motionSeconds}s`
-                          : `${p.input.duration}s target`}{" "}
+                          : p.input.style === "property-reel"
+                            ? "Property Reel"
+                            : `${p.input.duration}s target`}{" "}
                         · {new Date(p.createdAt).toLocaleDateString()}
                       </p>
                     </button>
@@ -489,7 +548,12 @@ export default function Studio() {
                             name="style"
                             value={style}
                             onChange={(e) =>
-                              setStyle(e.target.value as "explainer" | "motion")
+                              setStyle(
+                                e.target.value as
+                                  | "explainer"
+                                  | "motion"
+                                  | "property-reel",
+                              )
                             }
                           >
                             <option value="explainer">
@@ -497,6 +561,9 @@ export default function Studio() {
                             </option>
                             <option value="motion">
                               Motion promo · music only
+                            </option>
+                            <option value="property-reel">
+                              Property Reel · photo tour
                             </option>
                           </select>
                         </div>
@@ -862,6 +929,328 @@ export default function Studio() {
                             The new property will be extracted and the video
                             re-rendered automatically.
                           </p>
+                        </div>
+                      </div>
+                    )}
+                    {project &&
+                    propertyDraft &&
+                    project.input.style === "property-reel" &&
+                    !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Edit property board fields, then save before
+                          rendering.
+                        </p>
+                        <div className="motion-fields">
+                          <div className="motion-field-group">
+                            <label>
+                              Status
+                              <input
+                                value={propertyDraft.status || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "status",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Reference
+                              <input
+                                value={propertyDraft.reference || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "reference",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Title
+                              <input
+                                value={propertyDraft.title || ""}
+                                maxLength={80}
+                                onChange={(e) =>
+                                  updatePropertyField("title", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Location
+                              <input
+                                value={propertyDraft.location || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "location",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Cover image index
+                              <input
+                                type="number"
+                                value={
+                                  propertyDraft.cover?.imageIndex ?? ""
+                                }
+                                min={0}
+                                max={23}
+                                onChange={(e) =>
+                                  updatePropertyField("cover", {
+                                    imageIndex: Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              Close image index
+                              <input
+                                type="number"
+                                value={
+                                  propertyDraft.close?.imageIndex ?? ""
+                                }
+                                min={0}
+                                max={23}
+                                onChange={(e) =>
+                                  updatePropertyField("close", {
+                                    imageIndex: Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              Agency
+                              <input
+                                value={propertyDraft.agency || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("agency", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Price label
+                              <input
+                                value={propertyDraft.priceLabel || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "priceLabel",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Price
+                              <input
+                                value={propertyDraft.price || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("price", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Invite
+                              <input
+                                value={propertyDraft.invite || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("invite", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Phone
+                              <input
+                                value={propertyDraft.phone || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("phone", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Website
+                              <input
+                                value={propertyDraft.website || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "website",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            {propertyDraft.chapters.map((chapter, ci) => (
+                              <div key={ci} className="chapter-group">
+                                <label>
+                                  Chapter {ci + 1} name
+                                  <input
+                                    value={chapter.name}
+                                    maxLength={40}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? { ...c, name: e.target.value }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Upper image
+                                  <input
+                                    type="number"
+                                    value={chapter.upper.imageIndex}
+                                    min={0}
+                                    max={23}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  upper: {
+                                                    ...c.upper,
+                                                    imageIndex: Number(
+                                                      e.target.value,
+                                                    ),
+                                                  },
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Lower image
+                                  <input
+                                    type="number"
+                                    value={chapter.lower.imageIndex}
+                                    min={0}
+                                    max={23}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  lower: {
+                                                    ...c.lower,
+                                                    imageIndex: Number(
+                                                      e.target.value,
+                                                    ),
+                                                  },
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Upper caption
+                                  <input
+                                    value={chapter.upperCaption || ""}
+                                    maxLength={90}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  upperCaption: e.target.value,
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Lower caption
+                                  <input
+                                    value={chapter.lowerCaption || ""}
+                                    maxLength={90}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  lowerCaption: e.target.value,
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                              </div>
+                            ))}
+                            <button
+                              className="secondary"
+                              type="button"
+                              onClick={() =>
+                                updatePropertyField("chapters", [
+                                  ...propertyDraft.chapters,
+                                  {
+                                    name: "NEW ROOM",
+                                    upper: { imageIndex: 0 },
+                                    lower: { imageIndex: 0 },
+                                    upperCaption: "",
+                                    lowerCaption: "",
+                                  },
+                                ])
+                              }
+                            >
+                              <Plus size={14} /> Add chapter
+                            </button>
+                          </div>
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={busy || !dirty}
+                            onClick={savePropertyBoard}
+                          >
+                            <Check size={16} />
+                            Save property board
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={busy || dirty || !config?.worker}
+                            onClick={() =>
+                              void action(async () => {
+                                await api(
+                                  `/api/projects/${project.id}/render`,
+                                  { method: "POST" },
+                                );
+                              })
+                            }
+                          >
+                            <Play size={16} />
+                            Render video
+                          </button>
                         </div>
                       </div>
                     )}
