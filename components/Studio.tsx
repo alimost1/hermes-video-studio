@@ -55,7 +55,8 @@ export default function Studio() {
     [error, setError] = useState(""),
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
-  [motionDraft, setMotionDraft] = useState<MotionBrief | null>(null),
+    [motionDraft, setMotionDraft] = useState<MotionBrief | null>(null),
+    [sourceUrl, setSourceUrl] = useState(""),
     [dirty, setDirty] = useState(false),
     [style, setStyle] = useState<"explainer" | "motion">("explainer");
   const project = projects.find((p) => p.id === selected);
@@ -85,6 +86,7 @@ export default function Studio() {
         ? structuredClone(project.brief)
         : null,
     );
+    setSourceUrl(project?.input.url ?? "");
     setDirty(false);
   }, [selected, project?.revision, project?.storyboard?.title, project?.brief]);
   async function action(fn: () => Promise<void>) {
@@ -153,6 +155,28 @@ export default function Studio() {
       setProjects((items) =>
         items.map((item) => (item.id === p.id ? p : item)),
       );
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function changeSource() {
+    if (!project) return;
+    if (!sourceUrl || sourceUrl === project.input.url) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          url: sourceUrl,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setSourceUrl(p.input.url);
+      setMotionDraft(null);
       setDirty(false);
       setSelected(p.id);
     } catch (e) {
@@ -768,6 +792,43 @@ export default function Studio() {
                           </div>
                         </div>
                       )}
+                    {project &&
+                    project.input.style === "motion" &&
+                    !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Change the source video URL to re-render this motion
+                          promo from a different property page.
+                        </p>
+                        <div className="url-input">
+                          <Link2 size={18} />
+                          <input
+                            value={sourceUrl}
+                            type="url"
+                            placeholder="https://example.com/property"
+                            onChange={(e) => setSourceUrl(e.target.value)}
+                          />
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={
+                              busy ||
+                              !sourceUrl ||
+                              sourceUrl === project?.input.url
+                            }
+                            onClick={changeSource}
+                          >
+                            <RefreshCw size={16} />
+                            Change source video
+                          </button>
+                          <p className="help">
+                            The new property will be extracted and the video
+                            re-rendered automatically.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {motionDraft && !processing && (
                       <div className="scene-editor">
                         <p className="help">

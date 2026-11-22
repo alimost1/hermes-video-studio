@@ -21,6 +21,10 @@ export const storyboardSchema = z
       ctx.addIssue({ code: "custom", message: "Scene IDs must be unique" });
   });
 export const styleSchema = z.enum(["explainer", "motion"]);
+export const changeSourceSchema = z.object({
+  revision: z.number().int().positive(),
+  url: z.string().url().max(2048),
+});
 export const createSchema = z
   .object({
     url: z.string().url().max(2048),

@@ -15,6 +15,7 @@ import {
   projectLock,
 } from "@/src/server/store";
 import {
+  changeSourceSchema,
   createSchema,
   motionBriefSchema,
   storyboardSchema,
@@ -273,6 +274,37 @@ async function handler(
           const input = await body(req);
           if (input.revision !== p.revision)
             return json({ error: "Project changed. Reload before saving." }, 409);
+          // Change the source video URL and re-render from the new property.
+          if (input.url && input.url !== p.input.url) {
+            const parsed = changeSourceSchema.parse(input);
+            p.input.url = parsed.url;
+            p.source = undefined;
+            p.brief = undefined;
+            p.storyboard = undefined;
+            p.video = undefined;
+            p.output = undefined;
+            p.thumbnail = undefined;
+            p.subtitles = undefined;
+            p.error = undefined;
+            p.warnings = [];
+            p.status = "queued";
+            p.progress = 0;
+            p.revision++;
+            await saveProject(p);
+            try {
+              await jobs().add(
+                "generate",
+                { id: p.id, action: "generate" },
+                { jobId: `${p.id}-generate-${p.revision}` },
+              );
+            } catch (error) {
+              p.status = "failed";
+              p.error = "Could not enqueue this project. Retry it.";
+              await saveProject(p);
+              throw error;
+            }
+            return json(p);
+          }
           p.brief = motionBriefSchema.parse(input.brief);
           p.revision++;
           p.status = "review";
