@@ -1007,6 +1007,26 @@ export default function Studio() {
                                   })
                                 }
                               />
+                              {propertyDraft.cover?.imageIndex != null &&
+                                project?.source?.images[
+                                  propertyDraft.cover.imageIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      propertyDraft.cover.imageIndex
+                                    ]}
+                                    alt="Cover preview"
+                                    style={{
+                                      width: 60,
+                                      height: 60,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 8,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
                             </label>
                             <label>
                               Close image index
@@ -1023,6 +1043,26 @@ export default function Studio() {
                                   })
                                 }
                               />
+                              {propertyDraft.close?.imageIndex != null &&
+                                project?.source?.images[
+                                  propertyDraft.close.imageIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      propertyDraft.close.imageIndex
+                                    ]}
+                                    alt="Close preview"
+                                    style={{
+                                      width: 60,
+                                      height: 60,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 8,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
                             </label>
                             <label>
                               Agency
@@ -1137,6 +1177,26 @@ export default function Studio() {
                                       ])
                                     }
                                   />
+                                  {chapter.upper.imageIndex != null &&
+                                    project?.source?.images[
+                                      chapter.upper.imageIndex
+                                    ] && (
+                                      <img
+                                        src={project.source.images[
+                                          chapter.upper.imageIndex
+                                        ]}
+                                        alt="Upper preview"
+                                        style={{
+                                          width: 50,
+                                          height: 50,
+                                          objectFit: "cover",
+                                          border: "1px solid #ccc",
+                                          borderRadius: 4,
+                                          marginLeft: 6,
+                                          verticalAlign: "middle",
+                                        }}
+                                      />
+                                    )}
                                 </label>
                                 <label>
                                   Lower image
@@ -1164,6 +1224,26 @@ export default function Studio() {
                                       ])
                                     }
                                   />
+                                  {chapter.lower.imageIndex != null &&
+                                    project?.source?.images[
+                                      chapter.lower.imageIndex
+                                    ] && (
+                                      <img
+                                        src={project.source.images[
+                                          chapter.lower.imageIndex
+                                        ]}
+                                        alt="Lower preview"
+                                        style={{
+                                          width: 50,
+                                          height: 50,
+                                          objectFit: "cover",
+                                          border: "1px solid #ccc",
+                                          borderRadius: 4,
+                                          marginLeft: 6,
+                                          verticalAlign: "middle",
+                                        }}
+                                      />
+                                    )}
                                 </label>
                                 <label>
                                   Upper caption
