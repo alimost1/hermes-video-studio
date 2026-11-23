@@ -1926,6 +1926,26 @@ export default function Studio() {
                                   )
                                 )}
                               </select>
+                              {motionDraft.artworkIndex != null &&
+                                project?.source?.images[
+                                  motionDraft.artworkIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      motionDraft.artworkIndex
+                                    ]}
+                                    alt="Artwork preview"
+                                    style={{
+                                      width: 50,
+                                      height: 50,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 6,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
                             </label>
                           </div>
                         </div>
