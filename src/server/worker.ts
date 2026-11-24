@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -10,6 +10,10 @@ import { writeStoryboard } from "./hermes";
 import { voice, srtFromScenes } from "./voice";
 import { safeFetch } from "./safe-fetch";
 import { renderVideo } from "./render";
+import { renderMotion, skillDir, writeMotionBrief } from "./motion";
+import { renderProperty } from "./property";
+import { writePropertyBoard } from "./hermes";
+import { sampleMotionBrief } from "../shared/motion";
 import {
   FPS,
   sampleVideo,
@@ -60,6 +64,100 @@ const status = async (p: Project, s: Status, n: number) => {
   p.progress = n;
   await saveProject(p);
 };
+// Downloads (once) a source image into the project folder and returns its file name.
+async function cacheImage(p: Project, folder: string, index: number) {
+  const marker = path.join(folder, `image-${index}.json`);
+  try {
+    const name = JSON.parse(await readFile(marker, "utf8")).name;
+    await stat(path.join(folder, name));
+    return name as string;
+  } catch {
+    const asset = await safeFetch(p.source!.images[index], 8_000_000);
+    const extension = (
+      {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+      } as Record<string, string>
+    )[asset.contentType.split(";")[0]];
+    if (!extension) throw new Error("Unsupported image type");
+    const name = `image-${index}.${extension}`;
+    await writeFile(path.join(folder, name), asset.body);
+    await writeFile(marker, JSON.stringify({ name }));
+    return name;
+  }
+}
+// "Motion promo" style: Hermes writes a brief, the creatin-motion skill renders it. No narration, no ElevenLabs.
+async function processMotion(p: Project, id: string, folder: string) {
+  let artwork: string | undefined;
+  if (p.input.demo) {
+    p.source = {
+      url: p.input.url,
+      title: "Sample motion promo",
+      description: "Offline demonstration of the Motion promo style.",
+      text: "",
+      images: [],
+    };
+    p.brief = sampleMotionBrief;
+    p.warnings = [
+      "Sample project: no website was fetched and no AI brief was written.",
+    ];
+    artwork = "sample-stall.jpg";
+    await copyFile(
+      path.join(skillDir, "assets/sample-stall.jpg"),
+      path.join(folder, artwork),
+    );
+  } else {
+    if (!p.source) {
+      await status(p, "extracting", 8);
+      p.source = await extract(p.input.url);
+      await saveProject(p);
+    }
+    if (!p.brief) {
+      await status(p, "writing", 20);
+      p.brief = await writeMotionBrief(p.source, p.input, `${id}-${p.revision}`);
+      await saveProject(p);
+    }
+    const index = p.brief.artworkIndex;
+    if (index !== null && p.source.images[index]) {
+      try {
+        artwork = await cacheImage(p, folder, index);
+      } catch {
+        const warning = `Image ${index + 1} could not be downloaded; the mockups use generic artwork.`;
+        if (!p.warnings.includes(warning)) p.warnings.push(warning);
+      }
+    }
+  }
+  await status(p, "rendering", 35);
+  const movieName = `video-${p.revision}.mp4`,
+    posterName = `poster-${p.revision}.png`;
+  let last = 0;
+  let progressWrite = Promise.resolve();
+  await renderMotion({
+    folder,
+    brief: p.brief,
+    brand: p.input.brand,
+    accent: p.input.accent,
+    artwork,
+    seconds: p.input.motionSeconds,
+    output: path.join(folder, movieName),
+    thumbnail: path.join(folder, posterName),
+    onProgress: (n) => {
+      if (Date.now() - last > 1000) {
+        last = Date.now();
+        progressWrite = progressWrite.then(() =>
+          status(p, "rendering", 35 + Math.floor(n * 62)),
+        );
+      }
+    },
+  });
+  await progressWrite;
+  p.output = `/api/assets/${id}/${movieName}`;
+  p.thumbnail = `/api/assets/${id}/${posterName}`;
+  p.subtitles = undefined;
+  await status(p, "completed", 100);
+}
 async function processProject(id: string, action: string) {
   const p = await getProject(id);
   if (!p) throw new Error("Project not found.");
@@ -67,6 +165,44 @@ async function processProject(id: string, action: string) {
   await mkdir(folder, { recursive: true });
   try {
     p.error = undefined;
+    if (p.input.style === "property-reel") {
+      if (!p.source) {
+        await status(p, "extracting", 8);
+        p.source = await extract(p.input.url, p.input.style);
+        await saveProject(p);
+      }
+      if (!p.property) {
+        await status(p, "writing", 20);
+        p.property = await writePropertyBoard(
+          p.source,
+          p.input,
+          id + "-" + p.revision,
+        );
+        await saveProject(p);
+      }
+      const movie =
+        (p.propertyIntent ?? (p.input.autoRender ? "render" : "review")) ===
+        "render";
+      const board = p.property!;
+      await status(p, "rendering", 55);
+      const files = await renderProperty(
+        board,
+        p.source!,
+        folder,
+        p.revision,
+        movie,
+      );
+      const asset = (name: string) => "/api/assets/" + id + "/" + name;
+      p.thumbnail = asset(files.poster);
+      p.propertyProof = asset(files.proof);
+      p.output = files.video ? asset(files.video) : undefined;
+      await status(p, movie ? "completed" : "review", movie ? 100 : 30);
+      return;
+    }
+    if (p.input.style === "motion") {
+      await processMotion(p, id, folder);
+      return;
+    }
     if (action === "generate") {
       if (p.input.demo) {
         p.source = {
@@ -125,30 +261,7 @@ async function processProject(id: string, action: string) {
       let image: string | undefined;
       if (scene.imageIndex !== null && p.source.images[scene.imageIndex]) {
         try {
-          const marker = path.join(folder, `image-${scene.imageIndex}.json`);
-          let name: string;
-          try {
-            name = JSON.parse(await readFile(marker, "utf8")).name;
-            await stat(path.join(folder, name));
-          } catch {
-            const asset = await safeFetch(
-              p.source.images[scene.imageIndex],
-              8_000_000,
-            );
-            const extension = (
-              {
-                "image/jpeg": "jpg",
-                "image/png": "png",
-                "image/webp": "webp",
-                "image/gif": "gif",
-              } as Record<string, string>
-            )[asset.contentType.split(";")[0]];
-            if (!extension) throw new Error("Unsupported image type");
-            name = `image-${scene.imageIndex}.${extension}`;
-            await writeFile(path.join(folder, name), asset.body);
-            await writeFile(marker, JSON.stringify({ name }));
-          }
-          image = `/api/assets/${id}/${name}`;
+          image = `/api/assets/${id}/${await cacheImage(p, folder, scene.imageIndex)}`;
         } catch {
           const warning = `Image ${scene.imageIndex + 1} could not be downloaded; this scene uses text only.`;
           if (!p.warnings.includes(warning)) p.warnings.push(warning);

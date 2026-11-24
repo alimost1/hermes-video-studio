@@ -1,4 +1,9 @@
 import { z } from "zod";
+import type { MotionBrief } from "./motion";
+import type { PropertyBoard } from "./property";
+export type { MotionBrief };
+export type { PropertyBoard };
+export { motionBriefSchema } from "./motion";
 export const languageSchema = z.enum(["darija", "ar", "fr", "en"]);
 export const sceneSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),
@@ -17,18 +22,37 @@ export const storyboardSchema = z
     if (new Set(v.scenes.map((s) => s.id)).size !== v.scenes.length)
       ctx.addIssue({ code: "custom", message: "Scene IDs must be unique" });
   });
-export const createSchema = z.object({
+export const styleSchema = z.enum(["explainer", "motion", "property-reel"]);
+export const changeSourceSchema = z.object({
+  revision: z.number().int().positive(),
   url: z.string().url().max(2048),
-  language: languageSchema.default("darija"),
-  duration: z.union([z.literal(30), z.literal(60), z.literal(90)]).default(60),
-  brand: z.string().trim().min(1).max(48).default("My Studio"),
-  accent: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .default("#e6533c"),
-  autoRender: z.boolean().default(true),
-  demo: z.boolean().default(false),
 });
+export const createSchema = z
+  .object({
+    url: z.string().url().max(2048),
+    // "explainer": narrated Remotion scenes. "motion": music-only promo from skills/creatin-motion.
+    style: styleSchema.default("explainer"),
+    motionSeconds: z.union([z.literal(15), z.literal(45)]).default(45),
+    language: languageSchema.default("darija"),
+    duration: z
+      .union([z.literal(30), z.literal(60), z.literal(90)])
+      .default(60),
+    brand: z.string().trim().min(1).max(48).default("My Studio"),
+    accent: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .default("#e6533c"),
+    autoRender: z.boolean().default(true),
+    demo: z.boolean().default(false),
+  })
+  .refine(
+    (v) => v.style !== "motion" || v.language === "en" || v.language === "fr",
+    {
+      message:
+        "The motion style renders Latin-script text only. Choose English or French.",
+      path: ["language"],
+    },
+  );
 export type CreateInput = z.infer<typeof createSchema>;
 export type Storyboard = z.infer<typeof storyboardSchema>;
 export type Scene = z.infer<typeof sceneSchema>;
@@ -51,7 +75,9 @@ export type Source = {
   description: string;
   text: string;
   images: string[];
+  imageLabels?: string[];
 };
+export type Style = z.infer<typeof styleSchema>;
 export type Status =
   | "queued"
   | "extracting"
@@ -73,6 +99,10 @@ export type Project = {
   warnings: string[];
   source?: Source;
   storyboard?: Storyboard;
+  brief?: MotionBrief;
+  property?: PropertyBoard;
+  propertyProof?: string;
+  propertyIntent?: "review" | "render";
   video?: VideoProps;
   output?: string;
   thumbnail?: string;

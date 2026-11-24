@@ -15,10 +15,13 @@ import {
   projectLock,
 } from "@/src/server/store";
 import {
+  changeSourceSchema,
   createSchema,
+  motionBriefSchema,
   storyboardSchema,
   type Project,
 } from "@/src/shared/schema";
+import { parsePropertyBoard } from "@/src/shared/property";
 import { validateUrl } from "@/src/server/safe-fetch";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,19 +196,29 @@ async function handler(
       validateUrl(input.url);
       if (input.demo && process.env.DEMO_ENABLED !== "true")
         return json({ error: "Demo generation is disabled." }, 400);
+      // The motion and property-reel styles have no narration, so they need Hermes only.
+      const needsVoice =
+        input.style !== "motion" && input.style !== "property-reel";
       if (
         !input.demo &&
         !(
           process.env.HERMES_API_KEY &&
           process.env.HERMES_BASE_URL &&
-          process.env.ELEVENLABS_API_KEY &&
-          process.env.ELEVENLABS_VOICE_ID
+          (!needsVoice ||
+            (process.env.ELEVENLABS_API_KEY &&
+              process.env.ELEVENLABS_VOICE_ID))
         )
       )
         return json(
-          { error: "Configure Hermes and ElevenLabs on the server first." },
+          {
+            error: needsVoice
+              ? "Configure Hermes and ElevenLabs on the server first."
+              : "Configure Hermes on the server first.",
+          },
           503,
         );
+      // Motion projects are regenerated rather than edited, so they always render.
+      if (input.style === "motion") input.autoRender = true;
       const hash = createHash("sha256")
         .update(JSON.stringify(input))
         .digest("hex");
@@ -259,6 +272,84 @@ async function handler(
           409,
         );
       if (req.method === "PATCH" && route.length === 2) {
+        if (p.input.style === "motion") {
+          const input = await body(req);
+          if (input.revision !== p.revision)
+            return json({ error: "Project changed. Reload before saving." }, 409);
+          // Change the source video URL and re-render from the new property.
+          if (input.url && input.url !== p.input.url) {
+            const parsed = changeSourceSchema.parse(input);
+            p.input.url = parsed.url;
+            p.source = undefined;
+            p.brief = undefined;
+            p.storyboard = undefined;
+            p.video = undefined;
+            p.output = undefined;
+            p.thumbnail = undefined;
+            p.subtitles = undefined;
+            p.error = undefined;
+            p.warnings = [];
+            p.status = "queued";
+            p.progress = 0;
+            p.revision++;
+            await saveProject(p);
+            try {
+              await jobs().add(
+                "generate",
+                { id: p.id, action: "generate" },
+                { jobId: `${p.id}-generate-${p.revision}` },
+              );
+            } catch (error) {
+              p.status = "failed";
+              p.error = "Could not enqueue this project. Retry it.";
+              await saveProject(p);
+              throw error;
+            }
+            return json(p);
+          }
+          p.brief = motionBriefSchema.parse(input.brief);
+          p.revision++;
+          p.status = "review";
+          p.progress = 30;
+          p.output = undefined;
+          p.thumbnail = undefined;
+          p.video = undefined;
+          p.subtitles = undefined;
+          p.error = undefined;
+          await saveProject(p);
+          return json(p);
+        }
+        if (p.input.style === "property-reel") {
+          const input = await body(req);
+          if (input.revision !== p.revision)
+            return json({ error: "Project changed. Reload before saving." }, 409);
+          p.property = parsePropertyBoard(
+            input.property,
+            p.source?.images.length ?? 0,
+          );
+          p.revision++;
+          p.output = undefined;
+          p.thumbnail = undefined;
+          p.propertyProof = undefined;
+          p.propertyIntent = "review";
+          p.status = "queued";
+          p.progress = 30;
+          p.error = undefined;
+          await saveProject(p);
+          try {
+            await jobs().add(
+              "video",
+              { id, action: "proof" },
+              { jobId: id + "-" + p.revision },
+            );
+          } catch {
+            p.status = "failed";
+            p.error = "Could not enqueue the property preview. Retry it.";
+            await saveProject(p);
+            return json({ error: p.error }, 503);
+          }
+          return json(p);
+        }
         const input = await body(req);
         if (input.revision !== p.revision)
           return json({ error: "Project changed. Reload before saving." }, 409);
@@ -284,18 +375,19 @@ async function handler(
         return json(p);
       }
       if (req.method === "POST" && ["render", "retry"].includes(route[2])) {
-        if (route[2] === "render" && !p.storyboard)
+        if (route[2] === "render" && !p.storyboard && !p.brief && !p.property)
           return json({ error: "No storyboard available." }, 400);
         if (route[2] === "retry" && p.status !== "failed")
           return json({ error: "Only failed projects can be retried." }, 409);
         p.revision++;
         p.status = "queued";
         p.error = undefined;
+        if (p.input.style === "property-reel") p.propertyIntent = "render";
         await saveProject(p);
         try {
           await jobs().add(
             "video",
-            { id, action: p.storyboard ? "render" : "generate" },
+            { id, action: p.storyboard || p.brief ? "render" : "generate" },
             { jobId: `${id}-${p.revision}` },
           );
         } catch {

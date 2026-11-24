@@ -10,12 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "render:smoke": "node --env-file-if-exists=.env --import tsx scripts/render-smoke.ts",
+    "render:motion-smoke": "node --env-file-if-exists=.env --import tsx scripts/motion-smoke.ts",
     "submit": "node --env-file-if-exists=.env --import tsx scripts/submit.ts",
     "watch": "node --env-file-if-exists=.env --import tsx scripts/watch.ts",
     "cleanup": "node --env-file-if-exists=.env --import tsx scripts/cleanup.ts",
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.100",
     "@remotion/bundler": "4.0.539",
     "@remotion/player": "4.0.539",
     "@remotion/renderer": "4.0.539",

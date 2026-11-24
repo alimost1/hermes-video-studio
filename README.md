@@ -11,6 +11,7 @@ Designed for **8 CPU / 16 GB RAM**: one video job at a time, four concurrent ren
 - Hermes Agent integration through its documented `/v1/chat/completions` endpoint. The agent returns validated JSON; it never writes executable scene code.
 - Darija, Arabic, French, and English narration selection. Darija pronunciation depends on the selected ElevenLabs voice; audition your voice before production.
 - Five animated React layouts: hook, photo, facts, comparison, and conclusion.
+- A second **Motion promo** style: a 45- or 15-second music-only Reel in the Creatin SEO Web look, rendered by the bundled `creatin-motion` skill.
 - ElevenLabs speech timestamps, word highlighting, and SRT export.
 - Storyboard review, title/narration/point edits, image selection, layout selection, and scene reordering.
 - Live job status, render progress, video library, thumbnail, MP4 download, and manual retry.
@@ -111,6 +112,28 @@ npm run watch
 ```
 
 It reads RSS `<item><link>`, Atom `<entry><link href>`, or sitemap `<url><loc>`. It submits up to five unseen URLs each run and records successful submissions in `data/watch-seen.json`. Run it with cron from this checkout, for example `*/15 * * * * cd /opt/hermes-video-studio && /usr/bin/npm run watch >> /var/log/video-watch.log 2>&1`. Ensure the host Node/npm paths are correct. It refuses overlapping watcher runs. This is a host-side command; do not put it in the web request process. No schedule is installed automatically.
+
+## Motion promo style (URL → 45-second Reel)
+
+Besides the narrated explainer, the studio can turn a URL into a **music-only, 1080 × 1920, 30 fps promo** in the Creatin SEO Web motion style: a cream-and-lime kinetic hook, a search being typed, a brand reveal, a matching result, three reasons to click, a desktop mockup, the same page on a phone where the customer picks an option, a three-step route, and a held call to action. It reads on mute and ships with the original stereo score.
+
+Pick **Motion promo · music only** in the dashboard, or submit from a script:
+
+```bash
+VIDEO_STYLE=motion VIDEO_BRAND="Zest Walks" VIDEO_ACCENT="#bcf75d" npm run submit -- https://example.com/tour
+```
+
+or `POST /api/projects` with `"style": "motion"`, `"language": "en"` (or `"fr"`), `"motionSeconds": 45` (or `15`). `VIDEO_STYLE=motion npm run watch` does the same for new feed or sitemap URLs.
+
+How it works:
+
+1. The page is extracted exactly as for the explainer.
+2. Hermes returns a validated **brief** (`src/shared/motion.ts`): the opening question, search phrase, featured business, headlines, interface labels, a phone picker (dates, sizes, plans…), the closing action, and which source image best illustrates the offer. The director prompt is in `src/server/motion.ts`. As before, Hermes never writes executable code and image URLs are not sent to it.
+3. The worker runs the vendored skill in `skills/creatin-motion/` as a child process with a minimal environment (no provider keys) and a 20-minute limit. It draws the scenes with `@napi-rs/canvas`, encodes with FFmpeg, and mixes `assets/score.m4a`.
+
+Motion promos need **Hermes only** (no ElevenLabs), one render at a time, and no GPU. English and French only: the renderer uses Liberation fonts, which have no Arabic glyphs. Motion projects are regenerated, not edited; **Retry** re-renders from the saved brief. The brand mark is the first letter of the brand name unless you add a `logo` to the renderer brief. The sample render (**Try a sample render** with Motion selected) is fully offline.
+
+The same folder is a Claude Code skill (`.claude/skills/creatin-motion`), so you can also ask Claude to adapt the brief, run `node skills/creatin-motion/scripts/render.cjs brief.json promo.mp4`, or render the storyboard sheet with `--sheet`. `references/zest-walks-brief.json` is a complete example. Run `npm run render:motion-smoke` to render a 15-second sample into `out/motion/`.
 
 ## Local development
 

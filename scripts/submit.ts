@@ -14,8 +14,12 @@ const response = await fetch(
     body: JSON.stringify({
       url,
       brand: process.env.VIDEO_BRAND || "My Studio",
-      language: process.env.VIDEO_LANGUAGE || "darija",
+      language:
+        process.env.VIDEO_LANGUAGE ||
+        (process.env.VIDEO_STYLE === "motion" ? "en" : "darija"),
       duration: 60,
+      style: process.env.VIDEO_STYLE || "explainer",
+      accent: process.env.VIDEO_ACCENT || undefined,
       autoRender: true,
     }),
   },

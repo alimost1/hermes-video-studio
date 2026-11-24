@@ -20,12 +20,15 @@ import {
 import { Film } from "@/src/video/Film";
 import {
   FPS,
+  motionBriefSchema,
   sampleVideo,
   totalFrames,
+  type MotionBrief,
   type Project,
   type Storyboard,
   type VideoProps,
 } from "@/src/shared/schema";
+import type { PropertyBoard } from "@/src/shared/property";
 type Config = {
   hermes: boolean;
   voice: boolean;
@@ -53,7 +56,11 @@ export default function Studio() {
     [error, setError] = useState(""),
     [tab, setTab] = useState<"create" | "library" | "settings">("create"),
     [draft, setDraft] = useState<Storyboard | null>(null),
-    [dirty, setDirty] = useState(false);
+    [motionDraft, setMotionDraft] = useState<MotionBrief | null>(null),
+    [propertyDraft, setPropertyDraft] = useState<PropertyBoard | null>(null),
+    [sourceUrl, setSourceUrl] = useState(""),
+    [dirty, setDirty] = useState(false),
+    [style, setStyle] = useState<"explainer" | "motion" | "property-reel">("explainer");
   const project = projects.find((p) => p.id === selected);
   const processing =
     project && !["completed", "failed", "review"].includes(project.status);
@@ -75,9 +82,82 @@ export default function Studio() {
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
+    if (!project) {
+      setDraft(null);
+      setMotionDraft(null);
+      setSourceUrl("");
+      setDirty(false);
+      return;
+    }
     setDraft(project?.storyboard ? structuredClone(project.storyboard) : null);
+    setSourceUrl(project.input.url);
+    // Only (re)initialize motionDraft when the project changes or draft is null.
+    // Do NOT reset on every refresh poll — that wipes unsaved edits.
+    if (project.input.style === "motion" && motionDraft === null) {
+      setMotionDraft(
+        project.brief
+          ? structuredClone(project.brief)
+          : {
+              service: project.input.brand ?? "",
+              hook: "Discover",
+              hook2: "",
+              query: "",
+              sample: "",
+              result: "",
+              cta: "Learn more",
+              intro1: "",
+              intro2: "",
+              s1a: "", s1b: "", s3a: "", s3b: "", s4a: "", s4b: "",
+              s5a: "", s5b: "", s6a: "", s6b: "", s7a: "", s7b: "",
+              hero1: "", hero2: "",
+              shopCTA: "", shopLink: "",
+              resultBody: "", resultLink: "",
+              chip1: "", chip2: "", chip3: "",
+              openLabel: "", questionLabel: "", searchHint: "",
+              browserLabel: "", category: "",
+              galleryTitle: "", galleryMeta: "", cardLabel: "",
+              detail1: "", detail2: "", detail3: "",
+              detailIcon1: "", detailIcon2: "",
+              route1: "", route2: "", route3: "",
+              pickLabel: "", pickTitle: "", pickNote: "",
+              pick1: "", pick2: "", pick3: "", pickConfirm: "",
+              artworkIndex: null,
+            },
+        );
+    }
+    // Only (re)initialize propertyDraft when the project changes or draft is null.
+    if (project.input.style === "property-reel" && propertyDraft === null) {
+      setPropertyDraft(
+        project.property
+          ? structuredClone(project.property)
+          : {
+              status: "FOR SALE",
+              reference: "",
+              title: project.input.brand ?? "",
+              location: "",
+              cover: { imageIndex: 0 },
+              facts: [],
+              chapters: [
+                {
+                  name: "INTERIOR",
+                  upper: { imageIndex: 1 },
+                  lower: { imageIndex: 2 },
+                  upperCaption: "",
+                  lowerCaption: "",
+                },
+              ],
+              close: { imageIndex: 0 },
+              agency: "",
+              priceLabel: "",
+              price: "",
+              invite: "Arrange a viewing",
+              phone: "",
+              website: "",
+            },
+      );
+    }
     setDirty(false);
-  }, [selected, project?.revision, project?.storyboard?.title]);
+  }, [selected, project?.id]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -127,6 +207,75 @@ export default function Studio() {
     setDraft({ ...draft, scenes });
     setDirty(true);
   }
+  function updateMotionField(key: keyof MotionBrief, value: unknown) {
+    setMotionDraft((d) => (d ? { ...d, [key]: value } : null));
+    setDirty(true);
+  }
+  async function saveMotionBrief() {
+    if (!motionDraft || !project) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          brief: motionDraft,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  function updatePropertyField(key: keyof PropertyBoard, value: unknown) {
+    setPropertyDraft((d) => (d ? { ...d, [key]: value } : null));
+    setDirty(true);
+  }
+  async function savePropertyBoard() {
+    if (!propertyDraft || !project) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          property: propertyDraft,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function changeSource() {
+    if (!project) return;
+    if (!sourceUrl || sourceUrl === project.input.url) return;
+    try {
+      const p = await api<Project>(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          revision: project.revision,
+          url: sourceUrl,
+        }),
+      });
+      setProjects((items) =>
+        items.map((item) => (item.id === p.id ? p : item)),
+      );
+      setSourceUrl(p.input.url);
+      setMotionDraft(p.brief ? structuredClone(p.brief) : null);
+      setPropertyDraft(p.property ? structuredClone(p.property) : null);
+      setDirty(false);
+      setSelected(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   const create = async (form: HTMLFormElement, demo = false) => {
     const f = new FormData(form);
     await action(async () => {
@@ -134,8 +283,10 @@ export default function Studio() {
         method: "POST",
         body: JSON.stringify({
           url: demo ? "https://example.com" : f.get("url"),
+          style,
+          motionSeconds: Number(f.get("motionSeconds")) || 45,
           language: demo ? "en" : f.get("language"),
-          duration: Number(f.get("duration")),
+          duration: Number(f.get("duration")) || 60,
           brand: f.get("brand"),
           accent: f.get("accent"),
           autoRender: f.get("autoRender") === "on",
@@ -322,12 +473,18 @@ export default function Studio() {
                       </div>
                       <h3>
                         {p.storyboard?.title ||
+                          p.brief?.sample ||
                           p.source?.title ||
                           new URL(p.input.url).hostname}
                       </h3>
                       <p>
-                        {p.input.language.toUpperCase()} · {p.input.duration}s
-                        target · {new Date(p.createdAt).toLocaleDateString()}
+                        {p.input.language.toUpperCase()} ·{" "}
+                        {p.input.style === "motion"
+                          ? `Motion promo ${p.input.motionSeconds}s`
+                          : p.input.style === "property-reel"
+                            ? "Property Reel"
+                            : `${p.input.duration}s target`}{" "}
+                        · {new Date(p.createdAt).toLocaleDateString()}
                       </p>
                     </button>
                   ))}
@@ -385,29 +542,75 @@ export default function Studio() {
                       </p>
                       <div className="form-grid">
                         <div>
-                          <label htmlFor="language">Voice language</label>
+                          <label htmlFor="style">Video style</label>
                           <select
+                            id="style"
+                            name="style"
+                            value={style}
+                            onChange={(e) =>
+                              setStyle(
+                                e.target.value as
+                                  | "explainer"
+                                  | "motion"
+                                  | "property-reel",
+                              )
+                            }
+                          >
+                            <option value="explainer">
+                              Narrated explainer
+                            </option>
+                            <option value="motion">
+                              Motion promo · music only
+                            </option>
+                            <option value="property-reel">
+                              Property Reel · photo tour
+                            </option>
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="language">
+                            {style === "motion"
+                              ? "On-screen language"
+                              : "Voice language"}
+                          </label>
+                          <select
+                            key={style}
                             id="language"
                             name="language"
-                            defaultValue="darija"
+                            defaultValue={style === "motion" ? "en" : "darija"}
                           >
-                            <option value="darija">Moroccan Darija</option>
-                            <option value="ar">Arabic</option>
+                            {style === "explainer" && (
+                              <>
+                                <option value="darija">Moroccan Darija</option>
+                                <option value="ar">Arabic</option>
+                              </>
+                            )}
                             <option value="fr">French</option>
                             <option value="en">English</option>
                           </select>
                         </div>
                         <div>
                           <label htmlFor="duration">Target length</label>
-                          <select
-                            id="duration"
-                            name="duration"
-                            defaultValue="60"
-                          >
-                            <option value="30">30 seconds</option>
-                            <option value="60">60 seconds</option>
-                            <option value="90">90 seconds</option>
-                          </select>
+                          {style === "motion" ? (
+                            <select
+                              id="motionSeconds"
+                              name="motionSeconds"
+                              defaultValue="45"
+                            >
+                              <option value="45">45 seconds</option>
+                              <option value="15">15 seconds</option>
+                            </select>
+                          ) : (
+                            <select
+                              id="duration"
+                              name="duration"
+                              defaultValue="60"
+                            >
+                              <option value="30">30 seconds</option>
+                              <option value="60">60 seconds</option>
+                              <option value="90">90 seconds</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label htmlFor="brand">Brand name</label>
@@ -432,20 +635,22 @@ export default function Studio() {
                           </div>
                         </div>
                       </div>
-                      <label className="check-label">
-                        <input
-                          name="autoRender"
-                          type="checkbox"
-                          defaultChecked
-                        />
-                        Render automatically after writing the storyboard
-                      </label>
+                      {style === "explainer" && (
+                        <label className="check-label">
+                          <input
+                            name="autoRender"
+                            type="checkbox"
+                            defaultChecked
+                          />
+                          Render automatically after writing the storyboard
+                        </label>
+                      )}
                       <button
                         className="primary generate"
                         disabled={
                           busy ||
                           !config?.hermes ||
-                          !config?.voice ||
+                          (style === "explainer" && !config?.voice) ||
                           !config?.worker
                         }
                       >
@@ -453,10 +658,12 @@ export default function Studio() {
                         {busy ? "Working…" : "Generate my video"}
                         <ArrowUpRight size={18} />
                       </button>
-                      {(!config?.hermes || !config?.voice) && (
+                      {(!config?.hermes ||
+                        (style === "explainer" && !config?.voice)) && (
                         <p className="help">
-                          Connect Hermes and ElevenLabs in your server
-                          environment to generate from a URL.
+                          {style === "motion"
+                            ? "Connect Hermes in your server environment to generate from a URL."
+                            : "Connect Hermes and ElevenLabs in your server environment to generate from a URL."}
                         </p>
                       )}
                       {config?.demo && (
@@ -482,6 +689,7 @@ export default function Studio() {
                         <span className="step">02</span>
                         <h2>
                           {project.storyboard?.title ||
+                            project.brief?.sample ||
                             "Your video is taking shape"}
                         </h2>
                         <span className="badge">{project.status}</span>
@@ -687,8 +895,1090 @@ export default function Studio() {
                           </div>
                         </div>
                       )}
+                    {project &&
+                    project.input.style === "motion" &&
+                    !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Change the source video URL to re-render this motion
+                          promo from a different property page.
+                        </p>
+                        <div className="url-input">
+                          <Link2 size={18} />
+                          <input
+                            value={sourceUrl}
+                            type="url"
+                            placeholder="https://example.com/property"
+                            onChange={(e) => setSourceUrl(e.target.value)}
+                          />
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={
+                              busy ||
+                              !sourceUrl ||
+                              sourceUrl === project?.input.url
+                            }
+                            onClick={changeSource}
+                          >
+                            <RefreshCw size={16} />
+                            Change source video
+                          </button>
+                          <p className="help">
+                            The new property will be extracted and the video
+                            re-rendered automatically.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {project &&
+                    propertyDraft &&
+                    project.input.style === "property-reel" &&
+                    !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Edit property board fields, then save before
+                          rendering.
+                        </p>
+                        <div className="motion-fields">
+                          <div className="motion-field-group">
+                            <label>
+                              Status
+                              <input
+                                value={propertyDraft.status || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "status",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Reference
+                              <input
+                                value={propertyDraft.reference || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "reference",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Title
+                              <input
+                                value={propertyDraft.title || ""}
+                                maxLength={80}
+                                onChange={(e) =>
+                                  updatePropertyField("title", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Location
+                              <input
+                                value={propertyDraft.location || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "location",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Cover image index
+                              <input
+                                type="number"
+                                value={
+                                  propertyDraft.cover?.imageIndex ?? ""
+                                }
+                                min={0}
+                                max={23}
+                                onChange={(e) =>
+                                  updatePropertyField("cover", {
+                                    imageIndex: Number(e.target.value),
+                                  })
+                                }
+                              />
+                              {propertyDraft.cover?.imageIndex != null &&
+                                project?.source?.images[
+                                  propertyDraft.cover.imageIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      propertyDraft.cover.imageIndex
+                                    ]}
+                                    alt="Cover preview"
+                                    style={{
+                                      width: 60,
+                                      height: 60,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 8,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
+                            </label>
+                            <label>
+                              Close image index
+                              <input
+                                type="number"
+                                value={
+                                  propertyDraft.close?.imageIndex ?? ""
+                                }
+                                min={0}
+                                max={23}
+                                onChange={(e) =>
+                                  updatePropertyField("close", {
+                                    imageIndex: Number(e.target.value),
+                                  })
+                                }
+                              />
+                              {propertyDraft.close?.imageIndex != null &&
+                                project?.source?.images[
+                                  propertyDraft.close.imageIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      propertyDraft.close.imageIndex
+                                    ]}
+                                    alt="Close preview"
+                                    style={{
+                                      width: 60,
+                                      height: 60,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 8,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
+                            </label>
+                            <label>
+                              Agency
+                              <input
+                                value={propertyDraft.agency || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("agency", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Price label
+                              <input
+                                value={propertyDraft.priceLabel || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "priceLabel",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Price
+                              <input
+                                value={propertyDraft.price || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("price", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Invite
+                              <input
+                                value={propertyDraft.invite || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("invite", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Phone
+                              <input
+                                value={propertyDraft.phone || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField("phone", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Website
+                              <input
+                                value={propertyDraft.website || ""}
+                                maxLength={90}
+                                onChange={(e) =>
+                                  updatePropertyField(
+                                    "website",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            {propertyDraft.chapters.map((chapter, ci) => (
+                              <div key={ci} className="chapter-group">
+                                <label>
+                                  Chapter {ci + 1} name
+                                  <input
+                                    value={chapter.name}
+                                    maxLength={40}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? { ...c, name: e.target.value }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Upper image
+                                  <input
+                                    type="number"
+                                    value={chapter.upper.imageIndex}
+                                    min={0}
+                                    max={23}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  upper: {
+                                                    ...c.upper,
+                                                    imageIndex: Number(
+                                                      e.target.value,
+                                                    ),
+                                                  },
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                  {chapter.upper.imageIndex != null &&
+                                    project?.source?.images[
+                                      chapter.upper.imageIndex
+                                    ] && (
+                                      <img
+                                        src={project.source.images[
+                                          chapter.upper.imageIndex
+                                        ]}
+                                        alt="Upper preview"
+                                        style={{
+                                          width: 50,
+                                          height: 50,
+                                          objectFit: "cover",
+                                          border: "1px solid #ccc",
+                                          borderRadius: 4,
+                                          marginLeft: 6,
+                                          verticalAlign: "middle",
+                                        }}
+                                      />
+                                    )}
+                                </label>
+                                <label>
+                                  Lower image
+                                  <input
+                                    type="number"
+                                    value={chapter.lower.imageIndex}
+                                    min={0}
+                                    max={23}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  lower: {
+                                                    ...c.lower,
+                                                    imageIndex: Number(
+                                                      e.target.value,
+                                                    ),
+                                                  },
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                  {chapter.lower.imageIndex != null &&
+                                    project?.source?.images[
+                                      chapter.lower.imageIndex
+                                    ] && (
+                                      <img
+                                        src={project.source.images[
+                                          chapter.lower.imageIndex
+                                        ]}
+                                        alt="Lower preview"
+                                        style={{
+                                          width: 50,
+                                          height: 50,
+                                          objectFit: "cover",
+                                          border: "1px solid #ccc",
+                                          borderRadius: 4,
+                                          marginLeft: 6,
+                                          verticalAlign: "middle",
+                                        }}
+                                      />
+                                    )}
+                                </label>
+                                <label>
+                                  Upper caption
+                                  <input
+                                    value={chapter.upperCaption || ""}
+                                    maxLength={90}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  upperCaption: e.target.value,
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  Lower caption
+                                  <input
+                                    value={chapter.lowerCaption || ""}
+                                    maxLength={90}
+                                    onChange={(e) =>
+                                      updatePropertyField("chapters", [
+                                        ...propertyDraft.chapters.map(
+                                          (c, i) =>
+                                            i === ci
+                                              ? {
+                                                  ...c,
+                                                  lowerCaption: e.target.value,
+                                                }
+                                              : c,
+                                        ),
+                                      ])
+                                    }
+                                  />
+                                </label>
+                              </div>
+                            ))}
+                            <button
+                              className="secondary"
+                              type="button"
+                              onClick={() =>
+                                updatePropertyField("chapters", [
+                                  ...propertyDraft.chapters,
+                                  {
+                                    name: "NEW ROOM",
+                                    upper: { imageIndex: 0 },
+                                    lower: { imageIndex: 0 },
+                                    upperCaption: "",
+                                    lowerCaption: "",
+                                  },
+                                ])
+                              }
+                            >
+                              <Plus size={14} /> Add chapter
+                            </button>
+                          </div>
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={busy || !dirty}
+                            onClick={savePropertyBoard}
+                          >
+                            <Check size={16} />
+                            Save property board
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={busy || dirty || !config?.worker}
+                            onClick={() =>
+                              void action(async () => {
+                                await api(
+                                  `/api/projects/${project.id}/render`,
+                                  { method: "POST" },
+                                );
+                              })
+                            }
+                          >
+                            <Play size={16} />
+                            Render video
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {motionDraft && !processing && (
+                      <div className="scene-editor">
+                        <p className="help">
+                          Edit motion brief fields, then save before rendering.
+                        </p>
+                        <div className="motion-fields">
+                          <div className="motion-field-group">
+                            <label>
+                              Brand name
+                              <input
+                                value={motionDraft.service || ""}
+                                maxLength={48}
+                                onChange={(e) =>
+                                  updateMotionField("service", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hook (line 1)
+                              <input
+                                value={motionDraft.hook || ""}
+                                maxLength={20}
+                                onChange={(e) =>
+                                  updateMotionField("hook", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hook (line 2 / highlight)
+                              <input
+                                value={motionDraft.hook2 || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("hook2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Intro line 1
+                              <input
+                                value={motionDraft.intro1 || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("intro1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Intro line 2
+                              <input
+                                value={motionDraft.intro2 || ""}
+                                maxLength={20}
+                                onChange={(e) =>
+                                  updateMotionField("intro2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Search query
+                              <input
+                                value={motionDraft.query || ""}
+                                maxLength={40}
+                                onChange={(e) =>
+                                  updateMotionField("query", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Sample name
+                              <input
+                                value={motionDraft.sample || ""}
+                                maxLength={28}
+                                onChange={(e) =>
+                                  updateMotionField("sample", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result headline
+                              <input
+                                value={motionDraft.result || ""}
+                                maxLength={40}
+                                onChange={(e) =>
+                                  updateMotionField("result", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Call to action
+                              <input
+                                value={motionDraft.cta || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("cta", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Hero line 1
+                              <input
+                                value={motionDraft.hero1 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("hero1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Hero line 2
+                              <input
+                                value={motionDraft.hero2 || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("hero2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Shop CTA button
+                              <input
+                                value={motionDraft.shopCTA || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("shopCTA", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Shop link text
+                              <input
+                                value={motionDraft.shopLink || ""}
+                                maxLength={32}
+                                onChange={(e) =>
+                                  updateMotionField("shopLink", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result body text
+                              <textarea
+                                value={motionDraft.resultBody || ""}
+                                maxLength={70}
+                                onChange={(e) =>
+                                  updateMotionField("resultBody", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Result link text
+                              <input
+                                value={motionDraft.resultLink || ""}
+                                maxLength={34}
+                                onChange={(e) =>
+                                  updateMotionField("resultLink", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              S1a
+                              <input
+                                value={motionDraft.s1a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s1a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S1b
+                              <input
+                                value={motionDraft.s1b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s1b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S3a
+                              <input
+                                value={motionDraft.s3a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s3a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S3b
+                              <input
+                                value={motionDraft.s3b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s3b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S4a
+                              <input
+                                value={motionDraft.s4a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s4a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S4b
+                              <input
+                                value={motionDraft.s4b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s4b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S5a
+                              <input
+                                value={motionDraft.s5a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s5a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S5b
+                              <input
+                                value={motionDraft.s5b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s5b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S6a
+                              <input
+                                value={motionDraft.s6a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s6a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S6b
+                              <input
+                                value={motionDraft.s6b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s6b", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S7a
+                              <input
+                                value={motionDraft.s7a || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s7a", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              S7b
+                              <input
+                                value={motionDraft.s7b || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("s7b", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Chip 1
+                              <input
+                                value={motionDraft.chip1 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Chip 2
+                              <input
+                                value={motionDraft.chip2 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Chip 3
+                              <input
+                                value={motionDraft.chip3 || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("chip3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Open label
+                              <input
+                                value={motionDraft.openLabel || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("openLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Question label
+                              <input
+                                value={motionDraft.questionLabel || ""}
+                                maxLength={26}
+                                onChange={(e) =>
+                                  updateMotionField("questionLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Search hint
+                              <input
+                                value={motionDraft.searchHint || ""}
+                                maxLength={34}
+                                onChange={(e) =>
+                                  updateMotionField("searchHint", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Browser label
+                              <input
+                                value={motionDraft.browserLabel || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "browserLabel",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Category
+                              <input
+                                value={motionDraft.category || ""}
+                                maxLength={22}
+                                onChange={(e) =>
+                                  updateMotionField("category", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Gallery title
+                              <input
+                                value={motionDraft.galleryTitle || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "galleryTitle",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Gallery meta
+                              <input
+                                value={motionDraft.galleryMeta || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "galleryMeta",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Card label
+                              <input
+                                value={motionDraft.cardLabel || ""}
+                                maxLength={18}
+                                onChange={(e) =>
+                                  updateMotionField("cardLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Detail 1
+                              <input
+                                value={motionDraft.detail1 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail 2
+                              <input
+                                value={motionDraft.detail2 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail 3
+                              <input
+                                value={motionDraft.detail3 || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("detail3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail icon 1
+                              <input
+                                value={motionDraft.detailIcon1 || ""}
+                                maxLength={3}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "detailIcon1",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Detail icon 2
+                              <input
+                                value={motionDraft.detailIcon2 || ""}
+                                maxLength={3}
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "detailIcon2",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Route 1
+                              <input
+                                value={motionDraft.route1 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("route1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Route 2
+                              <input
+                                value={motionDraft.route2 || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("route2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Route 3
+                              <input
+                                value={motionDraft.route3 || ""}
+                                maxLength={14}
+                                onChange={(e) =>
+                                  updateMotionField("route3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick label
+                              <input
+                                value={motionDraft.pickLabel || ""}
+                                maxLength={30}
+                                onChange={(e) =>
+                                  updateMotionField("pickLabel", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick title
+                              <input
+                                value={motionDraft.pickTitle || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("pickTitle", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick note
+                              <input
+                                value={motionDraft.pickNote || ""}
+                                maxLength={16}
+                                onChange={(e) =>
+                                  updateMotionField("pickNote", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 1 (small|big)
+                              <input
+                                value={motionDraft.pick1 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick1", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 2 (small|big)
+                              <input
+                                value={motionDraft.pick2 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick2", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick 3 (small|big)
+                              <input
+                                value={motionDraft.pick3 || ""}
+                                maxLength={21}
+                                onChange={(e) =>
+                                  updateMotionField("pick3", e.target.value)
+                                }
+                              />
+                            </label>
+                            <label>
+                              Pick confirm
+                              <input
+                                value={motionDraft.pickConfirm || ""}
+                                maxLength={24}
+                                onChange={(e) =>
+                                  updateMotionField("pickConfirm", e.target.value)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="motion-field-group">
+                            <label>
+                              Artwork index
+                              <select
+                                value={
+                                  motionDraft.artworkIndex != null
+                                    ? motionDraft.artworkIndex
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  updateMotionField(
+                                    "artworkIndex",
+                                    e.target.value === ""
+                                      ? null
+                                      : Number(e.target.value),
+                                  )
+                                }
+                              >
+                                <option value="">None</option>
+                                {(project?.source?.images || []).map(
+                                  (_, index) => (
+                                    <option key={index} value={index}>
+                                      Image {index + 1}
+                                    </option>
+                                  )
+                                )}
+                              </select>
+                              {motionDraft.artworkIndex != null &&
+                                project?.source?.images[
+                                  motionDraft.artworkIndex
+                                ] && (
+                                  <img
+                                    src={project.source.images[
+                                      motionDraft.artworkIndex
+                                    ]}
+                                    alt="Artwork preview"
+                                    style={{
+                                      width: 50,
+                                      height: 50,
+                                      objectFit: "cover",
+                                      border: "1px solid #ccc",
+                                      borderRadius: 4,
+                                      marginLeft: 6,
+                                      verticalAlign: "middle",
+                                    }}
+                                  />
+                                )}
+                            </label>
+                          </div>
+                        </div>
+                        <div className="button-row">
+                          <button
+                            className="secondary"
+                            disabled={busy || !dirty}
+                            onClick={saveMotionBrief}
+                          >
+                            <Check size={16} />
+                            Save motion brief
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={busy || dirty || !config?.worker}
+                            onClick={() =>
+                              void action(async () => {
+                                await api(
+                                  `/api/projects/${project.id}/render`,
+                                  { method: "POST" },
+                                );
+                              })
+                            }
+                          >
+                            <Play size={16} />
+                            Render video
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     </section>
                   )}
+
                   {!project && (
                     <div className="workflow-strip">
                       <div>
@@ -723,6 +2013,23 @@ export default function Studio() {
                         controls
                         playsInline
                       />
+                    ) : project?.input.style === "motion" ? (
+                      <div
+                        style={{
+                          width: "100%",
+                          aspectRatio: "9 / 16",
+                          display: "grid",
+                          placeItems: "center",
+                          textAlign: "center",
+                          padding: 24,
+                        }}
+                      >
+                        <p className="help">
+                          {project.status === "failed"
+                            ? "The motion promo did not finish. Retry the job."
+                            : "Your motion promo appears here when the render finishes."}
+                        </p>
+                      </div>
                     ) : (
                       <Player
                         key={`${selected}-${project?.revision}`}
@@ -757,12 +2064,14 @@ export default function Studio() {
                         <Download size={16} />
                         Download MP4
                       </a>
-                      <a
-                        className="secondary"
-                        href={`${project.subtitles}?download=1`}
-                      >
-                        Subtitles
-                      </a>
+                      {project.subtitles && (
+                        <a
+                          className="secondary"
+                          href={`${project.subtitles}?download=1`}
+                        >
+                          Subtitles
+                        </a>
+                      )}
                     </div>
                   )}
                   <div className="style-card">
@@ -804,10 +2113,13 @@ export default function Studio() {
                       </span>
                       <span>
                         <b>
-                          {p.storyboard?.title || new URL(p.input.url).hostname}
+                          {p.storyboard?.title ||
+                            p.brief?.sample ||
+                            new URL(p.input.url).hostname}
                         </b>
                         <small>
                           {p.input.language.toUpperCase()} ·{" "}
+                          {p.input.style === "motion" ? "MOTION · " : ""}
                           {new Date(p.createdAt).toLocaleDateString()}
                         </small>
                       </span>
