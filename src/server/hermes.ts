@@ -61,7 +61,64 @@ function fallbackStoryboard(
 ): unknown {
   const title = source.title || "Untitled";
   const host = new URL(source.url).hostname;
-  const desc = source.description || source.text.slice(0, 100);
+  const text = source.text || source.description || "";
+  const desc = source.description || text.slice(0, 100);
+
+  // Extract price from text (e.g. "7 500 000 DH", "Prix de vente : 7 500 000 DH")
+  const priceMatch = text.match(
+    /(?:prix\s*(?:de\s*vente)?\s*[:=]\s*)?([\d\s\u00A0]+(?:\.\d+)?)\s*(DH|MAD|€|EUR|USD|\$)/i,
+  );
+  const price = priceMatch ? priceMatch[0].trim() : "";
+
+  // Extract location from title (after "à vendre –", "à vendre -", or city name)
+  const locationMatch = title.match(
+    /(?:à\s*vente\s*[–-]\s*|[–-]\s*)([^–-]+)$/i,
+  );
+  const location = locationMatch
+    ? locationMatch[1].trim()
+    : title.split(/[–-]/).pop()?.trim() || host;
+
+  // Extract property type from title
+  const typeMatch = title.match(
+    /(Villa|Appartement|Riad|Maison|Terrain|Commerce|Palais|Bureau)/i,
+  );
+  const propertyType = typeMatch ? typeMatch[1] : "Propriété";
+
+  // Extract key features from description/text
+  const features: string[] = [];
+  const featureKeywords = [
+    "piscine",
+    "terrasse",
+    "garage",
+    "salle de sport",
+    "cinéma",
+    "hammam",
+    "jardin",
+    "climatisation",
+    "suite",
+    "chambre",
+    "salon",
+    "cuisine",
+  ];
+  const lowerText = text.toLowerCase();
+  for (const kw of featureKeywords) {
+    if (lowerText.includes(kw) && features.length < 3) {
+      features.push(kw.charAt(0).toUpperCase() + kw.slice(1));
+    }
+  }
+  if (features.length === 0) features.push("Caractéristiques premium");
+
+  // Extract surface area
+  const surfaceMatch = text.match(/(\d+\s*(?:m²|m2|m2|sq\s*m))/i);
+  const surface = surfaceMatch ? surfaceMatch[1].trim() : "";
+
+  const narration1 = `${propertyType} à vendre ${location ? "à " + location : ""}${
+    price ? " — " + price : ""
+  }`.trim();
+  const narration2 = `${surface ? surface + " — " : ""}${
+    features.join(", ")
+  }`.trim();
+
   return {
     title: title.slice(0, 120),
     scenes: [
@@ -69,16 +126,16 @@ function fallbackStoryboard(
         id: "scene-1",
         type: "hook",
         title: title.slice(0, 100),
-        narration: desc.slice(0, 900),
-        points: ["Découvrez cette propriété."],
+        narration: narration1 || "Découvrez cette propriété.",
+        points: [price ? `Prix : ${price}` : "", location ? `Lieu : ${location}` : ""].filter(Boolean),
         imageIndex: source.images.length > 0 ? 0 : null,
       },
       {
         id: "scene-2",
         type: "image",
         title: "Ce que vous trouverez",
-        narration: "Une belle propriété avec des caractéristiques premium.",
-        points: ["Espaces généreux", "Finitions de qualité", "Emplacement idéal"],
+        narration: narration2 || "Une propriété avec des caractéristiques premium.",
+        points: features.slice(0, 3),
         imageIndex: source.images.length > 1 ? 1 : null,
       },
       {
@@ -86,7 +143,11 @@ function fallbackStoryboard(
         type: "facts",
         title: "Détails clés",
         narration: "Informations essentielles sur ce bien.",
-        points: ["Superficie habitable", "Nombre de pièces", "Équipements inclus"],
+        points: [
+          surface ? `Surface : ${surface}` : "",
+          propertyType ? `Type : ${propertyType}` : "",
+          desc.slice(0, 100),
+        ].filter(Boolean),
         imageIndex: source.images.length > 2 ? 2 : null,
       },
       {
