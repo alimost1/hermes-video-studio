@@ -21,6 +21,11 @@ export async function renderVideo(
     serveUrl,
     inputProps: video,
     browserExecutable: chromePath(),
+    browserFlags: [
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
   };
   const composition = await selectComposition({ ...options, id: "Explainer" });
   await renderStill({
